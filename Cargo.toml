@@ -1,0 +1,47 @@
+[package]
+name = "uniprot_etl"
+version = "0.1.0"
+edition = "2021"
+description = "High-throughput, zero-copy, streaming ETL engine for UniProtKB/Swiss-Prot XML to Apache Parquet"
+license = "MIT"
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# XML parsing (event-based, no DOM)
+quick-xml = "0.37"
+
+# Arrow + Parquet (nested columnar)
+arrow = { version = "53", default-features = false, features = ["ffi"] }
+parquet = { version = "53", features = ["zstd"] }
+
+# Streaming gzip decompression
+flate2 = "1"
+
+# Bounded producer-consumer channel
+crossbeam-channel = "0.5"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+flamegraph = "0.6"
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[[bench]]
+name = "flamegraph_benchmark"
+harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+
+[profile.bench]
+debug = true

@@ -1,0 +1,29 @@
+# Rust build
+/target/
+**/*.rs.bk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+
+# Bench & profiling outputs
+/flamegraph.svg
+/flamegraph_profile.txt
+/profile_output.txt
+/benches/*.parquet
+/tmp/
+/private/tmp/
+
+# Local data & artifacts
+*.parquet
+*.arrow
+*.ipynb
+
+# Cargo
+Cargo.lock

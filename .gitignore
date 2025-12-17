@@ -17,8 +17,7 @@
 /flamegraph_profile.txt
 /profile_output.txt
 /benches/*.parquet
-/tmp/
-/private/tmp/
+# note: system tmp dirs are outside repo; no need to ignore
 
 # Local data & artifacts
 *.parquet
@@ -26,4 +25,4 @@
 *.ipynb
 
 # Cargo
-Cargo.lock
+# keep Cargo.lock for binaries/apps

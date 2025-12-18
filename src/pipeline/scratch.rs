@@ -9,11 +9,7 @@ pub struct FeatureScratch {
     pub start: Option<i32>,
     pub end: Option<i32>,
     pub evidence_keys: Vec<String>,
-    /// Only used for <feature type="variant sequence">.
-    /// Captures <original>...</original> text.
     pub original: Option<String>,
-    /// Only used for <feature type="variant sequence">.
-    /// Captures <variation>...</variation> text.
     pub variation: Option<String>,
 }
 
@@ -200,7 +196,6 @@ impl InteractionScratch {
     }
 }
 
-
 /// Per-location scratch data
 #[derive(Debug, Default, Clone)]
 pub struct LocationScratch {
@@ -234,6 +229,13 @@ impl IsoformScratch {
     }
 }
 
+/// Reference to external structural database (PDB/AlphaFoldDB)
+#[derive(Debug, Default, Clone)]
+pub struct StructureRef {
+    pub database: String,
+    pub id: String,
+}
+
 /// Tracks which feature type we're currently parsing to route coordinates correctly
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FeatureContext {
@@ -247,115 +249,29 @@ pub enum FeatureContext {
     NaturalVariant,
 }
 
-/// Entry-local scratch buffer for accumulating data during parsing.
-/// All data is reset between entries to maintain constant memory.
+/// Finalized entry representation used by downstream transformer and batcher.
 #[derive(Debug, Default)]
-pub struct EntryScratch {
-    /// Primary accession (first <accession> element)
+pub struct ParsedEntry {
     pub accession: String,
-    /// Canonical/base accession used as parent_id for isoform rows.
-    /// This is always the first <accession> encountered.
     pub parent_id: String,
-    /// Full amino acid sequence
     pub sequence: String,
-    /// NCBI Taxonomy ID
     pub organism_id: Option<i32>,
 
-    /// Entry name (<entry><name>)
     pub entry_name: Option<String>,
-    /// Primary gene name (<gene><name type="primary">)
     pub gene_name: Option<String>,
-    /// Recommended protein name (<protein><recommendedName><fullName>)
     pub protein_name: Option<String>,
-    /// Organism scientific name (<organism><name type="scientific">)
     pub organism_scientific_name: Option<String>,
-    /// Protein existence (mapped 1-5; 0 unknown)
     pub existence: i8,
 
-    /// Structural references (e.g., PDB, AlphaFoldDB)
     pub structures: Vec<StructureRef>,
-
-    /// Entry-local evidence key -> ECO code mapping
     pub evidence_map: HashMap<String, String>,
 
-    /// Accumulated features
-    pub features: Vec<FeatureScratch>,
-    /// Current feature being parsed
-    pub current_feature: FeatureScratch,
-
-    /// Accumulated subcellular locations
-    pub locations: Vec<LocationScratch>,
-    /// Current location being parsed
-    pub current_location: LocationScratch,
-
-    /// Accumulated isoforms
+    pub features: FeatureCollections,
+    pub comments: CommentCollections,
     pub isoforms: Vec<IsoformScratch>,
-    /// Current isoform being parsed
-    pub current_isoform: IsoformScratch,
-
-    /// Text accumulator for multi-event text content
-    pub text_buffer: String,
-
-    /// Flag: have we captured the primary accession?
-    pub has_primary_accession: bool,
-
-    /// Tracks which feature type we're currently parsing (for coordinate mapping)
-    /// Used to route coordinates to the correct feature-specific buffer while in FeatureLocation state
-    pub current_feature_context: FeatureContext,
-
-    // ========================================================================
-    // Category A: Coordinate-Based Features (6 types including variant)
-    // ========================================================================
-    /// Accumulated active sites
-    pub active_sites: Vec<ActiveSiteScratch>,
-    /// Current active site being parsed
-    pub current_active_site: ActiveSiteScratch,
-
-    /// Accumulated binding sites
-    pub binding_sites: Vec<BindingSiteScratch>,
-    /// Current binding site being parsed
-    pub current_binding_site: BindingSiteScratch,
-
-    /// Accumulated metal coordination sites
-    pub metal_coordinations: Vec<MetalCoordinationScratch>,
-    /// Current metal coordination site being parsed
-    pub current_metal_coordination: MetalCoordinationScratch,
-
-    /// Accumulated mutagenesis sites
-    pub mutagenesis_sites: Vec<MutagenesisSiteScratch>,
-    /// Current mutagenesis site being parsed
-    pub current_mutagenesis_site: MutagenesisSiteScratch,
-
-    /// Accumulated domains
-    pub domains: Vec<DomainScratch>,
-    /// Current domain being parsed
-    pub current_domain: DomainScratch,
-
-    /// Accumulated natural variants
-    pub natural_variants: Vec<NaturalVariantScratch>,
-    /// Current natural variant being parsed
-    pub current_natural_variant: NaturalVariantScratch,
-
-    // ========================================================================
-    // Category B: Text-Based Comment Features (2 types)
-    // ========================================================================
-    /// Accumulated subunit comments
-    pub subunits: Vec<SubunitScratch>,
-    /// Current subunit comment being parsed
-    pub current_subunit: SubunitScratch,
-
-    /// Accumulated PPI interactions
-    pub interactions: Vec<InteractionScratch>,
-    /// Current interaction being parsed
-    pub current_interaction: InteractionScratch,
 }
 
-impl EntryScratch {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Resets all fields for the next entry
+impl ParsedEntry {
     pub fn clear(&mut self) {
         self.accession.clear();
         self.parent_id.clear();
@@ -369,36 +285,8 @@ impl EntryScratch {
         self.structures.clear();
         self.evidence_map.clear();
         self.features.clear();
-        self.current_feature.clear();
-        self.locations.clear();
-        self.current_location.clear();
+        self.comments.clear();
         self.isoforms.clear();
-        self.current_isoform.clear();
-        self.text_buffer.clear();
-        self.has_primary_accession = false;
-
-        // Clear all new category A coordinate-based features
-        self.active_sites.clear();
-        self.current_active_site.clear();
-        self.binding_sites.clear();
-        self.current_binding_site.clear();
-        self.metal_coordinations.clear();
-        self.current_metal_coordination.clear();
-        self.mutagenesis_sites.clear();
-        self.current_mutagenesis_site.clear();
-        self.domains.clear();
-        self.current_domain.clear();
-        self.natural_variants.clear();
-        self.current_natural_variant.clear();
-
-        // Clear all category B text-based comment features
-        self.subunits.clear();
-        self.current_subunit.clear();
-        self.interactions.clear();
-        self.current_interaction.clear();
-
-        // Reset feature context
-        self.current_feature_context = FeatureContext::Generic;
     }
 
     /// Returns the canonical amino acid at a 1-based XML coordinate.
@@ -467,9 +355,98 @@ impl EntryScratch {
     }
 }
 
-/// Reference to external structural database (PDB/AlphaFoldDB)
-#[derive(Debug, Default, Clone)]
-pub struct StructureRef {
-    pub database: String,
-    pub id: String,
+/// Aggregates coordinate-based feature collections.
+#[derive(Debug, Default)]
+pub struct FeatureCollections {
+    pub generic: Vec<FeatureScratch>,
+    pub active_sites: Vec<ActiveSiteScratch>,
+    pub binding_sites: Vec<BindingSiteScratch>,
+    pub metal_coordinations: Vec<MetalCoordinationScratch>,
+    pub mutagenesis_sites: Vec<MutagenesisSiteScratch>,
+    pub domains: Vec<DomainScratch>,
+    pub natural_variants: Vec<NaturalVariantScratch>,
+}
+
+impl FeatureCollections {
+    pub fn clear(&mut self) {
+        self.generic.clear();
+        self.active_sites.clear();
+        self.binding_sites.clear();
+        self.metal_coordinations.clear();
+        self.mutagenesis_sites.clear();
+        self.domains.clear();
+        self.natural_variants.clear();
+    }
+}
+
+/// Aggregates comment-derived collections.
+#[derive(Debug, Default)]
+pub struct CommentCollections {
+    pub locations: Vec<LocationScratch>,
+    pub subunits: Vec<SubunitScratch>,
+    pub interactions: Vec<InteractionScratch>,
+}
+
+impl CommentCollections {
+    pub fn clear(&mut self) {
+        self.locations.clear();
+        self.subunits.clear();
+        self.interactions.clear();
+    }
+}
+
+/// Entry-local scratch buffer for accumulating data during parsing.
+/// All data is reset between entries to maintain constant memory.
+#[derive(Debug, Default)]
+pub struct EntryScratch {
+    pub entry: ParsedEntry,
+    pub text_buffer: String,
+    pub has_primary_accession: bool,
+    pub current_feature_context: FeatureContext,
+
+    pub current_feature: FeatureScratch,
+    pub current_active_site: ActiveSiteScratch,
+    pub current_binding_site: BindingSiteScratch,
+    pub current_metal_coordination: MetalCoordinationScratch,
+    pub current_mutagenesis_site: MutagenesisSiteScratch,
+    pub current_domain: DomainScratch,
+    pub current_natural_variant: NaturalVariantScratch,
+
+    pub current_location: LocationScratch,
+    pub current_isoform: IsoformScratch,
+    pub current_subunit: SubunitScratch,
+    pub current_interaction: InteractionScratch,
+}
+
+impl EntryScratch {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Resets all fields for the next entry
+    pub fn reset(&mut self) {
+        self.entry.clear();
+        self.text_buffer.clear();
+        self.has_primary_accession = false;
+        self.current_feature_context = FeatureContext::Generic;
+
+        self.current_feature.clear();
+        self.current_active_site.clear();
+        self.current_binding_site.clear();
+        self.current_metal_coordination.clear();
+        self.current_mutagenesis_site.clear();
+        self.current_domain.clear();
+        self.current_natural_variant.clear();
+        self.current_location.clear();
+        self.current_isoform.clear();
+        self.current_subunit.clear();
+        self.current_interaction.clear();
+    }
+
+    /// Moves the accumulated entry out, leaving the scratch ready for reuse.
+    pub fn take_entry(&mut self) -> ParsedEntry {
+        let entry = std::mem::take(&mut self.entry);
+        self.reset();
+        entry
+    }
 }

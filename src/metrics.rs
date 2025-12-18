@@ -18,12 +18,77 @@ struct MetricsInner {
     ptm_attempted: AtomicU64,
     ptm_mapped: AtomicU64,
     ptm_failed: AtomicU64,
-    ptm_failed_canonical_oob: AtomicU64,
-    ptm_failed_vsp_deletion: AtomicU64,
-    ptm_failed_mapper_oob: AtomicU64,
-    ptm_failed_vsp_unresolvable: AtomicU64,
-    ptm_failed_isoform_oob: AtomicU64,
-    ptm_failed_residue_mismatch: AtomicU64,
+    ptm_failures: PtmFailures,
+}
+
+struct PtmFailures {
+    canonical_oob: AtomicU64,
+    vsp_deletion: AtomicU64,
+    mapper_oob: AtomicU64,
+    vsp_unresolvable: AtomicU64,
+    isoform_oob: AtomicU64,
+    residue_mismatch: AtomicU64,
+}
+
+impl PtmFailures {
+    fn new() -> Self {
+        Self {
+            canonical_oob: AtomicU64::new(0),
+            vsp_deletion: AtomicU64::new(0),
+            mapper_oob: AtomicU64::new(0),
+            vsp_unresolvable: AtomicU64::new(0),
+            isoform_oob: AtomicU64::new(0),
+            residue_mismatch: AtomicU64::new(0),
+        }
+    }
+
+    fn add_canonical_oob(&self, count: u64) {
+        self.canonical_oob.fetch_add(count, Ordering::Relaxed);
+    }
+
+    fn add_vsp_deletion(&self, count: u64) {
+        self.vsp_deletion.fetch_add(count, Ordering::Relaxed);
+    }
+
+    fn add_mapper_oob(&self, count: u64) {
+        self.mapper_oob.fetch_add(count, Ordering::Relaxed);
+    }
+
+    fn add_vsp_unresolvable(&self, count: u64) {
+        self.vsp_unresolvable.fetch_add(count, Ordering::Relaxed);
+    }
+
+    fn add_isoform_oob(&self, count: u64) {
+        self.isoform_oob.fetch_add(count, Ordering::Relaxed);
+    }
+
+    fn add_residue_mismatch(&self, count: u64) {
+        self.residue_mismatch.fetch_add(count, Ordering::Relaxed);
+    }
+
+    fn canonical_oob(&self) -> u64 {
+        self.canonical_oob.load(Ordering::Relaxed)
+    }
+
+    fn vsp_deletion(&self) -> u64 {
+        self.vsp_deletion.load(Ordering::Relaxed)
+    }
+
+    fn mapper_oob(&self) -> u64 {
+        self.mapper_oob.load(Ordering::Relaxed)
+    }
+
+    fn vsp_unresolvable(&self) -> u64 {
+        self.vsp_unresolvable.load(Ordering::Relaxed)
+    }
+
+    fn isoform_oob(&self) -> u64 {
+        self.isoform_oob.load(Ordering::Relaxed)
+    }
+
+    fn residue_mismatch(&self) -> u64 {
+        self.residue_mismatch.load(Ordering::Relaxed)
+    }
 }
 
 impl Metrics {
@@ -40,12 +105,7 @@ impl Metrics {
                 ptm_attempted: AtomicU64::new(0),
                 ptm_mapped: AtomicU64::new(0),
                 ptm_failed: AtomicU64::new(0),
-                ptm_failed_canonical_oob: AtomicU64::new(0),
-                ptm_failed_vsp_deletion: AtomicU64::new(0),
-                ptm_failed_mapper_oob: AtomicU64::new(0),
-                ptm_failed_vsp_unresolvable: AtomicU64::new(0),
-                ptm_failed_isoform_oob: AtomicU64::new(0),
-                ptm_failed_residue_mismatch: AtomicU64::new(0),
+                ptm_failures: PtmFailures::new(),
             }),
         }
     }
@@ -91,39 +151,27 @@ impl Metrics {
     }
 
     pub fn add_ptm_failed_canonical_oob(&self, count: u64) {
-        self.inner
-            .ptm_failed_canonical_oob
-            .fetch_add(count, Ordering::Relaxed);
+        self.inner.ptm_failures.add_canonical_oob(count);
     }
 
     pub fn add_ptm_failed_vsp_deletion(&self, count: u64) {
-        self.inner
-            .ptm_failed_vsp_deletion
-            .fetch_add(count, Ordering::Relaxed);
+        self.inner.ptm_failures.add_vsp_deletion(count);
     }
 
     pub fn add_ptm_failed_mapper_oob(&self, count: u64) {
-        self.inner
-            .ptm_failed_mapper_oob
-            .fetch_add(count, Ordering::Relaxed);
+        self.inner.ptm_failures.add_mapper_oob(count);
     }
 
     pub fn add_ptm_failed_vsp_unresolvable(&self, count: u64) {
-        self.inner
-            .ptm_failed_vsp_unresolvable
-            .fetch_add(count, Ordering::Relaxed);
+        self.inner.ptm_failures.add_vsp_unresolvable(count);
     }
 
     pub fn add_ptm_failed_isoform_oob(&self, count: u64) {
-        self.inner
-            .ptm_failed_isoform_oob
-            .fetch_add(count, Ordering::Relaxed);
+        self.inner.ptm_failures.add_isoform_oob(count);
     }
 
     pub fn add_ptm_failed_residue_mismatch(&self, count: u64) {
-        self.inner
-            .ptm_failed_residue_mismatch
-            .fetch_add(count, Ordering::Relaxed);
+        self.inner.ptm_failures.add_residue_mismatch(count);
     }
 
     pub fn entries(&self) -> u64 {
@@ -163,27 +211,27 @@ impl Metrics {
     }
 
     pub fn ptm_failed_canonical_oob(&self) -> u64 {
-        self.inner.ptm_failed_canonical_oob.load(Ordering::Relaxed)
+        self.inner.ptm_failures.canonical_oob()
     }
 
     pub fn ptm_failed_vsp_deletion(&self) -> u64 {
-        self.inner.ptm_failed_vsp_deletion.load(Ordering::Relaxed)
+        self.inner.ptm_failures.vsp_deletion()
     }
 
     pub fn ptm_failed_mapper_oob(&self) -> u64 {
-        self.inner.ptm_failed_mapper_oob.load(Ordering::Relaxed)
+        self.inner.ptm_failures.mapper_oob()
     }
 
     pub fn ptm_failed_vsp_unresolvable(&self) -> u64 {
-        self.inner.ptm_failed_vsp_unresolvable.load(Ordering::Relaxed)
+        self.inner.ptm_failures.vsp_unresolvable()
     }
 
     pub fn ptm_failed_isoform_oob(&self) -> u64 {
-        self.inner.ptm_failed_isoform_oob.load(Ordering::Relaxed)
+        self.inner.ptm_failures.isoform_oob()
     }
 
     pub fn ptm_failed_residue_mismatch(&self) -> u64 {
-        self.inner.ptm_failed_residue_mismatch.load(Ordering::Relaxed)
+        self.inner.ptm_failures.residue_mismatch()
     }
 
     pub fn elapsed_secs(&self) -> f64 {
@@ -202,13 +250,12 @@ impl Metrics {
         let ptm_attempted = self.inner.ptm_attempted.load(Ordering::Relaxed);
         let ptm_mapped = self.inner.ptm_mapped.load(Ordering::Relaxed);
         let ptm_failed = self.inner.ptm_failed.load(Ordering::Relaxed);
-        let ptm_failed_canonical_oob = self.inner.ptm_failed_canonical_oob.load(Ordering::Relaxed);
-        let ptm_failed_vsp_deletion = self.inner.ptm_failed_vsp_deletion.load(Ordering::Relaxed);
-        let ptm_failed_mapper_oob = self.inner.ptm_failed_mapper_oob.load(Ordering::Relaxed);
-        let ptm_failed_vsp_unresolvable = self.inner.ptm_failed_vsp_unresolvable.load(Ordering::Relaxed);
-        let ptm_failed_isoform_oob = self.inner.ptm_failed_isoform_oob.load(Ordering::Relaxed);
-        let ptm_failed_residue_mismatch =
-            self.inner.ptm_failed_residue_mismatch.load(Ordering::Relaxed);
+        let ptm_failed_canonical_oob = self.ptm_failed_canonical_oob();
+        let ptm_failed_vsp_deletion = self.ptm_failed_vsp_deletion();
+        let ptm_failed_mapper_oob = self.ptm_failed_mapper_oob();
+        let ptm_failed_vsp_unresolvable = self.ptm_failed_vsp_unresolvable();
+        let ptm_failed_isoform_oob = self.ptm_failed_isoform_oob();
+        let ptm_failed_residue_mismatch = self.ptm_failed_residue_mismatch();
 
         let entries_per_sec = entries as f64 / elapsed;
         let mb_read = bytes_read as f64 / (1024.0 * 1024.0);

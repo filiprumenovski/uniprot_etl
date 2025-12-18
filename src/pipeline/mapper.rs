@@ -1,4 +1,4 @@
-use crate::pipeline::scratch::EntryScratch;
+use crate::pipeline::scratch::ParsedEntry;
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,8 +32,8 @@ pub struct CoordinateMapper {
 }
 
 impl CoordinateMapper {
-    pub fn from_entry(scratch: &EntryScratch) -> Self {
-        Self::from_entry_for_vsp_ids(scratch, &[])
+    pub fn from_entry(entry: &ParsedEntry) -> Self {
+        Self::from_entry_for_vsp_ids(entry, &[])
     }
 
     /// Returns the number of VSP edits in this mapper (for diagnostics).
@@ -50,7 +50,7 @@ impl CoordinateMapper {
     /// Builds a mapper using only splice-variant edits referenced by the isoform.
     ///
     /// If `vsp_ids` is empty, returns an identity mapper.
-    pub fn from_entry_for_vsp_ids(scratch: &EntryScratch, vsp_ids: &[String]) -> Self {
+    pub fn from_entry_for_vsp_ids(entry: &ParsedEntry, vsp_ids: &[String]) -> Self {
         if vsp_ids.is_empty() {
             return Self { edits: Vec::new() };
         }
@@ -58,7 +58,7 @@ impl CoordinateMapper {
         let vsp_set: HashSet<&str> = vsp_ids.iter().map(|s| s.as_str()).collect();
         let mut edits: Vec<VspEdit> = Vec::new();
 
-        for feat in &scratch.features {
+        for feat in &entry.features.generic {
             // UniProt uses "splice variant" features (id="VSP_...") to describe
             // alternative isoform sequences. Older/other exports may use "variant sequence".
             if feat.feature_type != "splice variant" && feat.feature_type != "variant sequence" {
@@ -232,12 +232,12 @@ fn is_missing_variant(variation: &str, description: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pipeline::scratch::{EntryScratch, FeatureScratch};
+    use crate::pipeline::scratch::{FeatureScratch, ParsedEntry};
 
     #[test]
     fn deletion_shifts_downstream_positions() {
-        let mut scratch = EntryScratch::new();
-        scratch.sequence = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string();
+        let mut entry = ParsedEntry::default();
+        entry.sequence = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string();
 
         let vsp = FeatureScratch {
             id: Some("VSP_TEST".to_string()),
@@ -248,9 +248,9 @@ mod tests {
             variation: Some("Missing".to_string()),
             ..Default::default()
         };
-        scratch.features.push(vsp);
+        entry.features.generic.push(vsp);
 
-        let mapper = CoordinateMapper::from_entry_for_vsp_ids(&scratch, &["VSP_TEST".to_string()]);
+        let mapper = CoordinateMapper::from_entry_for_vsp_ids(&entry, &["VSP_TEST".to_string()]);
 
         // Position 10 should shift -3.
         assert_eq!(mapper.map_point_1based(10).unwrap(), 7);
@@ -263,8 +263,8 @@ mod tests {
 
     #[test]
     fn non_missing_indel_rejects_interior() {
-        let mut scratch = EntryScratch::new();
-        scratch.sequence = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string();
+        let mut entry = ParsedEntry::default();
+        entry.sequence = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string();
 
         // Replace positions 5..7 (len=3) with len=1 -> delta=-2.
         let vsp = FeatureScratch {
@@ -275,8 +275,8 @@ mod tests {
             variation: Some("E".to_string()),
             ..Default::default()
         };
-        scratch.features.push(vsp);
-        let mapper = CoordinateMapper::from_entry_for_vsp_ids(&scratch, &["VSP_TEST".to_string()]);
+        entry.features.generic.push(vsp);
+        let mapper = CoordinateMapper::from_entry_for_vsp_ids(&entry, &["VSP_TEST".to_string()]);
 
         // Exact start maps through.
         assert_eq!(mapper.map_point_1based(5).unwrap(), 5);
@@ -315,8 +315,8 @@ mod tests {
 
     #[test]
     fn substitution_maps_identity() {
-        let mut scratch = EntryScratch::new();
-        scratch.sequence = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string();
+        let mut entry = ParsedEntry::default();
+        entry.sequence = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string();
 
         // Replace positions 5..7 (len=3) with len=3 -> delta=0 (substitution).
         let vsp = FeatureScratch {
@@ -327,8 +327,8 @@ mod tests {
             variation: Some("XYZ".to_string()),
             ..Default::default()
         };
-        scratch.features.push(vsp);
-        let mapper = CoordinateMapper::from_entry_for_vsp_ids(&scratch, &["VSP_TEST".to_string()]);
+        entry.features.generic.push(vsp);
+        let mapper = CoordinateMapper::from_entry_for_vsp_ids(&entry, &["VSP_TEST".to_string()]);
 
         // All positions within substitution map 1-to-1.
         assert_eq!(mapper.map_point_1based(5).unwrap(), 5);

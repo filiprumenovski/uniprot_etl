@@ -53,6 +53,7 @@ UniProt_ETL is built on four key architectural decisions documented in [docs/adr
 2. **[ADR-0002: Event-Driven Streaming XML](docs/adr/0002-streaming-xml-quick-xml.md)** — Constant-memory parsing with quick-xml and gzip streaming.
 3. **[ADR-0003: Producer-Consumer with crossbeam](docs/adr/0003-producer-consumer-crossbeam.md)** — I/O decoupling and backpressure.
 4. **[ADR-0004: Nested Parquet Schema](docs/adr/0004-nested-parquet-schema.md)** — Hierarchical fidelity and evidence preservation.
+5. **[ADR-0006: Nomenclature & Structural Hooks](docs/adr/0006-nomenclature-structural-hooks.md)** — Adds gene/protein names, organism scientific name, protein existence, and PDB/AlphaFoldDB references.
 
 ### Data Flow
 
@@ -83,9 +84,17 @@ organism_id (Int32)
 isoforms (List<{id, sequence, note}>)
 features (List<{feature_type, description, start, end, evidence}>)
 locations (List<{location, evidence}>)
+entry_name (Utf8)
+gene_name (Utf8)
+protein_name (Utf8)
+organism_name (Utf8)
+existence (Int8)  // 1–5 mapping; null if unknown
+structures (List<{db, id}>)  // e.g., PDB, AlphaFoldDB
 ```
 
 Evidence codes (ECO) are semicolon-joined strings; parse downstream as needed.
+
+See [ADR-0006](docs/adr/0006-nomenclature-structural-hooks.md) for details on the new columns and existence mapping.
 
 ## Development
 
@@ -95,6 +104,16 @@ Located in [scripts/](scripts/):
 - `clean_data.sh`: Remove generated data files; see [ADR-0003](docs/adr/0003-producer-consumer-crossbeam.md#notes) for tuning.
 - `fetch_uniprot.sh`: Download UniProt datasets; requires `UNIPROT_URL` env var.
 - `profile_flamegraph.sh`: Build and profile benchmarks with cargo-flamegraph.
+  
+  
+### UI
+
+During pipeline runs, a lightweight terminal progress bar shows:
+- entries parsed, entries/sec
+- batches, features, isoforms
+- bytes read/written
+
+This uses `indicatif` and cleans up automatically at the end of the run.
 
 ### Testing
 

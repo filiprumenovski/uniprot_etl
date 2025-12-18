@@ -10,7 +10,7 @@ use uniprot_etl::pipeline::parser::parse_entries;
 
 #[test]
 fn parses_single_entry_into_record_batch() -> Result<()> {
-        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <uniprot>
     <entry>
         <accession>Q9TEST</accession>
@@ -184,7 +184,7 @@ fn parses_single_entry_into_record_batch() -> Result<()> {
 
 #[test]
 fn parses_multiple_entries_and_handles_missing_evidence() -> Result<()> {
-        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <uniprot>
     <entry>
         <accession>Q1</accession>
@@ -212,72 +212,72 @@ fn parses_multiple_entries_and_handles_missing_evidence() -> Result<()> {
 </uniprot>
 "#;
 
-        let mut reader = Reader::from_reader(Cursor::new(xml.as_bytes()));
-        reader.config_mut().trim_text(true);
+    let mut reader = Reader::from_reader(Cursor::new(xml.as_bytes()));
+    reader.config_mut().trim_text(true);
 
-        let metrics = Metrics::new();
-        let (tx, rx) = unbounded();
+    let metrics = Metrics::new();
+    let (tx, rx) = unbounded();
 
-        parse_entries(reader, tx, &metrics, 16)?;
+    parse_entries(reader, tx, &metrics, 16)?;
 
-        let batches: Vec<_> = rx.iter().collect();
-        assert_eq!(batches.len(), 1);
+    let batches: Vec<_> = rx.iter().collect();
+    assert_eq!(batches.len(), 1);
 
-        let batch = &batches[0];
-        assert_eq!(batch.num_rows(), 2);
+    let batch = &batches[0];
+    assert_eq!(batch.num_rows(), 2);
 
-        let ids = batch
-                .column(0)
-                .as_any()
-                .downcast_ref::<StringArray>()
-                .unwrap();
-        assert_eq!(ids.value(0), "Q1");
-        assert_eq!(ids.value(1), "Q2");
+    let ids = batch
+        .column(0)
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+    assert_eq!(ids.value(0), "Q1");
+    assert_eq!(ids.value(1), "Q2");
 
-        let organisms = batch
-                .column(2)
-                .as_any()
-                .downcast_ref::<Int32Array>()
-                .unwrap();
-        assert!(organisms.is_valid(0));
-        assert!(organisms.is_null(1));
+    let organisms = batch
+        .column(2)
+        .as_any()
+        .downcast_ref::<Int32Array>()
+        .unwrap();
+    assert!(organisms.is_valid(0));
+    assert!(organisms.is_null(1));
 
-        let features = batch
-                .column(4)
-                .as_any()
-                .downcast_ref::<ListArray>()
-                .unwrap();
+    let features = batch
+        .column(4)
+        .as_any()
+        .downcast_ref::<ListArray>()
+        .unwrap();
 
-        // Entry 0: has evidence code
-        assert_eq!(features.value_length(0), 1);
-        let feature_struct_0 = features.value(0);
-        let feature_struct_0 = feature_struct_0
-                .as_any()
-                .downcast_ref::<StructArray>()
-                .unwrap();
-        let evidence_col_0 = feature_struct_0
-                .column(4)
-                .as_any()
-                .downcast_ref::<StringArray>()
-                .unwrap();
-        assert_eq!(evidence_col_0.value(0), "ECO:0000255");
+    // Entry 0: has evidence code
+    assert_eq!(features.value_length(0), 1);
+    let feature_struct_0 = features.value(0);
+    let feature_struct_0 = feature_struct_0
+        .as_any()
+        .downcast_ref::<StructArray>()
+        .unwrap();
+    let evidence_col_0 = feature_struct_0
+        .column(4)
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+    assert_eq!(evidence_col_0.value(0), "ECO:0000255");
 
-        // Entry 1: no evidence attribute should yield null evidence_code
-        assert_eq!(features.value_length(1), 1);
-        let feature_struct_1 = features.value(1);
-        let feature_struct_1 = feature_struct_1
-                .as_any()
-                .downcast_ref::<StructArray>()
-                .unwrap();
-        let evidence_col_1 = feature_struct_1
-                .column(4)
-                .as_any()
-                .downcast_ref::<StringArray>()
-                .unwrap();
-        assert!(evidence_col_1.is_null(0));
+    // Entry 1: no evidence attribute should yield null evidence_code
+    assert_eq!(features.value_length(1), 1);
+    let feature_struct_1 = features.value(1);
+    let feature_struct_1 = feature_struct_1
+        .as_any()
+        .downcast_ref::<StructArray>()
+        .unwrap();
+    let evidence_col_1 = feature_struct_1
+        .column(4)
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+    assert!(evidence_col_1.is_null(0));
 
-        assert_eq!(metrics.entries(), 2);
-        assert_eq!(metrics.batches(), 1);
+    assert_eq!(metrics.entries(), 2);
+    assert_eq!(metrics.batches(), 1);
 
-        Ok(())
+    Ok(())
 }

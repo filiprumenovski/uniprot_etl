@@ -23,7 +23,11 @@ impl Batcher {
         Self::with_batch_size(sender, metrics, DEFAULT_BATCH_SIZE)
     }
 
-    pub fn with_batch_size(sender: Sender<RecordBatch>, metrics: Metrics, batch_size: usize) -> Self {
+    pub fn with_batch_size(
+        sender: Sender<RecordBatch>,
+        metrics: Metrics,
+        batch_size: usize,
+    ) -> Self {
         Self {
             builders: EntryBuilders::new(batch_size),
             batch_size,
@@ -53,9 +57,7 @@ impl Batcher {
         }
 
         let batch = self.builders.finish_batch()?;
-        self.sender
-            .send(batch)
-            .map_err(|_| EtlError::ChannelSend)?;
+        self.sender.send(batch).map_err(|_| EtlError::ChannelSend)?;
         self.metrics.inc_batches();
 
         Ok(())

@@ -6,14 +6,20 @@ use parquet::file::properties::{WriterProperties, WriterVersion};
 use std::fs::File;
 use std::path::Path;
 
-use crate::error::Result;
+use crate::config::Settings;
 use crate::metrics::Metrics;
 use crate::schema::schema_ref;
+use anyhow::{anyhow, Result};
 
 /// Consumes RecordBatches from the channel and writes them to a Parquet file.
-pub fn write_batches(rx: Receiver<RecordBatch>, output: &Path, metrics: &Metrics) -> Result<()> {
+pub fn write_batches(
+    rx: Receiver<RecordBatch>,
+    output: &Path,
+    metrics: &Metrics,
+    settings: &Settings,
+) -> Result<()> {
     let file = File::create(output)?;
-    let props = writer_properties();
+    let props = writer_properties(settings)?;
     let mut writer = ArrowWriter::try_new(file, schema_ref(), Some(props))?;
 
     for batch in rx {
@@ -26,23 +32,27 @@ pub fn write_batches(rx: Receiver<RecordBatch>, output: &Path, metrics: &Metrics
     let row_groups = file_metadata.row_groups;
     let total_bytes: i64 = row_groups.iter().map(|rg| rg.total_byte_size).sum();
     eprintln!(
-        "Parquet file size: {:.2} MB",
+        "Wrote Parquet: {} (size: {:.2} MB)",
+        output.display(),
         total_bytes as f64 / (1024.0 * 1024.0)
     );
 
     Ok(())
 }
 
-/// Creates optimized WriterProperties for UniProt data.
-fn writer_properties() -> WriterProperties {
-    WriterProperties::builder()
+/// Creates optimized WriterProperties for UniProt data from Settings.
+fn writer_properties(settings: &Settings) -> Result<WriterProperties> {
+    let zstd_level = ZstdLevel::try_new(settings.performance.zstd_level as i32)
+        .map_err(|e| anyhow!("Invalid zstd_level: {}", e))?;
+
+    Ok(WriterProperties::builder()
         .set_writer_version(WriterVersion::PARQUET_2_0)
-        .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
+        .set_compression(Compression::ZSTD(zstd_level))
         // Use dictionary encoding for string columns (good for repeated values)
         .set_column_encoding("id".into(), Encoding::PLAIN)
         .set_column_encoding("sequence".into(), Encoding::PLAIN)
         .set_dictionary_enabled(true)
         // Row group size: balance between compression and random access
-        .set_max_row_group_size(100_000)
-        .build()
+        .set_max_row_group_size(settings.performance.max_row_group_size)
+        .build())
 }

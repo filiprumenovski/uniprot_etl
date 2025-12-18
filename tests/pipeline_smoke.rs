@@ -4,6 +4,7 @@ use std::thread;
 use arrow::record_batch::RecordBatch;
 use crossbeam_channel::bounded;
 
+use uniprot_etl::config::Settings;
 use uniprot_etl::error::Result;
 use uniprot_etl::metrics::Metrics;
 use uniprot_etl::pipeline::parser::parse_entries;
@@ -21,6 +22,7 @@ fn parses_real_uniprot_file_smoke() -> Result<()> {
 
     let metrics = Metrics::new();
     let (tx, rx) = bounded::<RecordBatch>(8);
+    let settings = Settings::default();
 
     // Drain batches in a consumer thread to avoid backpressure.
     let consumer = thread::spawn(move || {
@@ -31,7 +33,7 @@ fn parses_real_uniprot_file_smoke() -> Result<()> {
         rows
     });
 
-    let reader = create_xml_reader(&path)?;
+    let reader = create_xml_reader(&path, &settings)?;
     parse_entries(reader, tx, &metrics, 5_000)?;
 
     let total_rows = consumer.join().expect("consumer thread panicked");

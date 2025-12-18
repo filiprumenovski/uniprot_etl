@@ -9,6 +9,10 @@ license = "MIT"
 # CLI
 clap = { version = "4", features = ["derive"] }
 
+# Configuration
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+
 # XML parsing (event-based, no DOM)
 quick-xml = "0.37"
 

@@ -1,10 +1,11 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
-use uniprot_etl::pipeline::reader::create_xml_reader;
-use uniprot_etl::pipeline::parser::parse_entries;
-use uniprot_etl::metrics::Metrics;
 use crossbeam_channel::bounded;
-use std::thread;
 use std::path::{Path, PathBuf};
+use std::thread;
+use uniprot_etl::config::Settings;
+use uniprot_etl::metrics::Metrics;
+use uniprot_etl::pipeline::parser::parse_entries;
+use uniprot_etl::pipeline::reader::create_xml_reader;
 use uniprot_etl::writer::parquet::write_batches;
 
 fn find_uniprot_file() -> Option<PathBuf> {
@@ -15,7 +16,7 @@ fn find_uniprot_file() -> Option<PathBuf> {
         "/Volumes/NVMe2TB/uniprot_sprot.xml.gz",
         "./data/uniprot_sprot.xml.gz",
     ];
-    
+
     for path in paths {
         let p = Path::new(path);
         if p.exists() {
@@ -30,7 +31,7 @@ fn benchmark_pipeline_50k_batch(c: &mut Criterion) {
         Some(f) => {
             println!("Found UniProt file at: {:?}", f);
             f
-        },
+        }
         None => {
             eprintln!("Warning: No UniProt data file found. Benchmark will be skipped.");
             eprintln!("Expected at one of: NVMe2TB/uniprot_sprot.xml.gz or similar");
@@ -39,7 +40,7 @@ fn benchmark_pipeline_50k_batch(c: &mut Criterion) {
     };
 
     let mut group = c.benchmark_group("flamegraph_50k");
-    
+
     // Set reasonable sample size for flamegraph
     group.sample_size(10);
     group.throughput(Throughput::Elements(50000));
@@ -48,25 +49,28 @@ fn benchmark_pipeline_50k_batch(c: &mut Criterion) {
         b.iter(|| {
             let metrics = Metrics::new();
             let (tx, rx) = bounded(8);
-            
+
             let output_path = PathBuf::from("/tmp/output_flamegraph.parquet");
             let writer_metrics = metrics.clone();
+            let settings = Settings::default();
 
-            let writer_handle = thread::spawn(move || {
-                write_batches(rx, &output_path, &writer_metrics)
-            });
+            let writer_handle =
+                thread::spawn(move || write_batches(rx, &output_path, &writer_metrics, &settings));
 
-            let reader = create_xml_reader(input_file.as_path())
+            let reader = create_xml_reader(input_file.as_path(), &settings)
                 .expect("Failed to create XML reader");
-            
+
             parse_entries(
                 reader,
                 tx,
                 &metrics,
                 black_box(50000), // 50k batch size
-            ).expect("Failed to parse entries");
+            )
+            .expect("Failed to parse entries");
 
-            writer_handle.join().expect("Writer thread panicked")
+            writer_handle
+                .join()
+                .expect("Writer thread panicked")
                 .expect("Writer failed");
         })
     });

@@ -1,0 +1,87 @@
+# UniProt ETL Configuration
+# Copy this file to config.yaml and customize for your environment.
+# All paths can be relative (to project root) or absolute.
+# CLI arguments override values specified here.
+
+# Configuration schema version for forward compatibility
+version: "1.0"
+
+# Storage paths and directories
+storage:
+  # Path to input UniProt XML file (required via --input CLI flag or config)
+  # Supports both .xml and .xml.gz compressed files
+  input_path: null  # Set via --input or uncomment/modify here
+  # input_path: "data/raw/uniprot_sprot.xml.gz"
+
+  # Path to output Parquet file
+  # Relative paths resolve to the project root
+  output_path: "data/parquet/uniprot.parquet"
+
+  # Temporary directory for intermediate files (future use)
+  temp_dir: "data/tmp"
+
+# Performance tuning parameters
+performance:
+  # Number of entries per RecordBatch
+  # Larger batches improve compression but use more memory
+  # Recommended range: 5000 - 50000
+  batch_size: 10000
+
+  # Number of parser threads (currently unused, reserved for future)
+  thread_count: 1
+
+  # Channel capacity: maximum number of batches in flight between parser and writer
+  # Recommended range: 4 - 16
+  # Higher values may improve throughput but use more memory
+  channel_capacity: 8
+
+  # Zstd compression level (1-22)
+  # Lower values (1-3) are faster, higher values (10+) compress better
+  # Recommended: 3-10 for balanced performance
+  zstd_level: 3
+
+  # Maximum Parquet row group size
+  # Larger values improve compression but reduce random access granularity
+  # Recommended range: 50000 - 200000
+  max_row_group_size: 100000
+
+  # Buffer size for XML reading (bytes)
+  # Larger buffers improve I/O performance at the cost of memory
+  # Recommended range: 128KB - 1MB
+  buffer_size: 262144  # 256KB
+
+# Logging configuration
+logging:
+  # Log level: debug, info, warn, error
+  # Reserved for future use; currently fixed at info
+  log_level: "info"
+
+  # Metrics reporting interval in seconds
+  # Determines frequency of progress messages
+  metrics_interval_secs: 5
+
+# Example configurations:
+
+# --- High throughput (larger batches, faster compression) ---
+# performance:
+#   batch_size: 50000
+#   channel_capacity: 16
+#   zstd_level: 3
+#   max_row_group_size: 200000
+#   buffer_size: 1048576  # 1MB
+
+# --- High compression (slower but smaller output) ---
+# performance:
+#   batch_size: 20000
+#   channel_capacity: 8
+#   zstd_level: 10
+#   max_row_group_size: 150000
+#   buffer_size: 262144  # 256KB
+
+# --- Memory constrained ---
+# performance:
+#   batch_size: 5000
+#   channel_capacity: 4
+#   zstd_level: 1
+#   max_row_group_size: 50000
+#   buffer_size: 131072  # 128KB

@@ -50,11 +50,15 @@ impl Metrics {
     }
 
     pub fn add_features(&self, count: u64) {
-        self.inner.features_count.fetch_add(count, Ordering::Relaxed);
+        self.inner
+            .features_count
+            .fetch_add(count, Ordering::Relaxed);
     }
 
     pub fn add_isoforms(&self, count: u64) {
-        self.inner.isoforms_count.fetch_add(count, Ordering::Relaxed);
+        self.inner
+            .isoforms_count
+            .fetch_add(count, Ordering::Relaxed);
     }
 
     pub fn entries(&self) -> u64 {

@@ -1,0 +1,11 @@
+# Centralized data outputs (keep folder READMEs)
+/data/**
+!/data/README.md
+!/data/raw/README.md
+!/data/parquet/README.md
+!/data/species/README.md
+!/data/tmp/README.md
+!/data/logs/README.md
+
+# Rust target build output
+/target/

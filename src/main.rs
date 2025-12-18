@@ -1,6 +1,7 @@
 mod cli;
 mod config;
 mod error;
+mod fasta;
 mod metrics;
 mod pipeline;
 mod report;
@@ -24,6 +25,7 @@ use std::thread;
 
 use crate::cli::Args;
 use crate::config::Settings;
+use crate::fasta::load_fasta_map;
 use crate::metrics::Metrics;
 use crate::pipeline::parser::parse_entries;
 use crate::pipeline::reader::create_xml_reader;
@@ -65,7 +67,8 @@ fn main() -> Result<()> {
 
     // Load settings from YAML, with CLI overrides
     let mut settings = Settings::load_from_yaml(args.config.as_deref())?;
-    settings = settings.merge_with_cli(args.input, args.output, args.batch_size);
+    settings =
+        settings.merge_with_cli(args.input, args.output, args.batch_size, args.fasta_sidecar);
 
     // Resolve paths relative to current working directory (project root)
     let root = env::current_dir()?;
@@ -108,6 +111,11 @@ fn main() -> Result<()> {
         "[INFO]   Output: {}",
         settings.storage.output_path.display()
     );
+    if let Some(ref fasta) = settings.storage.fasta_sidecar_path {
+        log!(logger, "[INFO]   FASTA sidecar: {}", fasta.display());
+    } else {
+        log!(logger, "[WARN]   FASTA sidecar: (not set)");
+    }
     log!(
         logger,
         "[INFO]   Batch size: {}",
@@ -140,6 +148,8 @@ fn main() -> Result<()> {
             let batches = progress_metrics.batches();
             let features = progress_metrics.features();
             let isoforms = progress_metrics.isoforms();
+            let ptm_mapped = progress_metrics.ptm_mapped();
+            let ptm_failed = progress_metrics.ptm_failed();
             let bytes_read = progress_metrics.bytes_read();
             let bytes_written = progress_metrics.bytes_written();
             let eps = if elapsed > 0.0 {
@@ -150,8 +160,8 @@ fn main() -> Result<()> {
             let mb_read = bytes_read as f64 / (1024.0 * 1024.0);
             let mb_written = bytes_written as f64 / (1024.0 * 1024.0);
             pb.set_message(format!(
-                "entries: {} ({:.0}/s) | batches: {} | features: {} | isoforms: {} | read: {:.2} MB | written: {:.2} MB",
-                entries, eps, batches, features, isoforms, mb_read, mb_written
+                "rows: {} ({:.0}/s) | batches: {} | features: {} | isoforms: {} | ptm: {} mapped / {} failed | read: {:.2} MB | written: {:.2} MB",
+                entries, eps, batches, features, isoforms, ptm_mapped, ptm_failed, mb_read, mb_written
             ));
             std::thread::sleep(std::time::Duration::from_millis(200));
         }
@@ -228,8 +238,22 @@ fn run_etl_pipeline(
     // Pass metrics to create_xml_reader for bytes tracking
     let reader = create_xml_reader(settings.input_path()?, settings, metrics)?;
 
+    // Sidecar FASTA (loaded into RAM for O(1) isoform sequence lookup)
+    let sidecar_fasta = if let Some(ref path) = settings.storage.fasta_sidecar_path {
+        let map = load_fasta_map(path)?;
+        Some(Arc::new(map))
+    } else {
+        None
+    };
+
     // Run the parser
-    let parse_result = parse_entries(reader, tx, metrics, settings.performance.batch_size);
+    let parse_result = parse_entries(
+        reader,
+        tx,
+        metrics,
+        settings.performance.batch_size,
+        sidecar_fasta,
+    );
 
     // Wait for writer to finish
     let writer_result = writer_handle.join().expect("Writer thread panicked");
@@ -249,6 +273,9 @@ fn print_summary_to_tee(metrics: &Metrics, logger: &mut TeeWriter) {
     let bytes_written = metrics.bytes_written();
     let features = metrics.features();
     let isoforms = metrics.isoforms();
+    let ptm_attempted = metrics.ptm_attempted();
+    let ptm_mapped = metrics.ptm_mapped();
+    let ptm_failed = metrics.ptm_failed();
 
     let entries_per_sec = entries as f64 / elapsed;
     let mb_read = bytes_read as f64 / (1024.0 * 1024.0);
@@ -258,6 +285,9 @@ fn print_summary_to_tee(metrics: &Metrics, logger: &mut TeeWriter) {
     log!(logger, "=== ETL Summary ===");
     log!(logger, "Entries parsed:  {}", entries);
     log!(logger, "Batches written: {}", batches);
+    log!(logger, "PTMs attempted:  {}", ptm_attempted);
+    log!(logger, "PTMs mapped:     {}", ptm_mapped);
+    log!(logger, "PTMs failed:     {}", ptm_failed);
     log!(logger, "Features:        {}", features);
     log!(logger, "Isoforms:        {}", isoforms);
     log!(logger, "Time elapsed:    {:.2}s", elapsed);

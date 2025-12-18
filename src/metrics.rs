@@ -15,6 +15,15 @@ struct MetricsInner {
     bytes_written: AtomicU64,
     features_count: AtomicU64,
     isoforms_count: AtomicU64,
+    ptm_attempted: AtomicU64,
+    ptm_mapped: AtomicU64,
+    ptm_failed: AtomicU64,
+    ptm_failed_canonical_oob: AtomicU64,
+    ptm_failed_vsp_deletion: AtomicU64,
+    ptm_failed_mapper_oob: AtomicU64,
+    ptm_failed_vsp_unresolvable: AtomicU64,
+    ptm_failed_isoform_oob: AtomicU64,
+    ptm_failed_residue_mismatch: AtomicU64,
 }
 
 impl Metrics {
@@ -28,6 +37,15 @@ impl Metrics {
                 bytes_written: AtomicU64::new(0),
                 features_count: AtomicU64::new(0),
                 isoforms_count: AtomicU64::new(0),
+                ptm_attempted: AtomicU64::new(0),
+                ptm_mapped: AtomicU64::new(0),
+                ptm_failed: AtomicU64::new(0),
+                ptm_failed_canonical_oob: AtomicU64::new(0),
+                ptm_failed_vsp_deletion: AtomicU64::new(0),
+                ptm_failed_mapper_oob: AtomicU64::new(0),
+                ptm_failed_vsp_unresolvable: AtomicU64::new(0),
+                ptm_failed_isoform_oob: AtomicU64::new(0),
+                ptm_failed_residue_mismatch: AtomicU64::new(0),
             }),
         }
     }
@@ -60,6 +78,54 @@ impl Metrics {
             .fetch_add(count, Ordering::Relaxed);
     }
 
+    pub fn add_ptm_attempted(&self, count: u64) {
+        self.inner.ptm_attempted.fetch_add(count, Ordering::Relaxed);
+    }
+
+    pub fn add_ptm_mapped(&self, count: u64) {
+        self.inner.ptm_mapped.fetch_add(count, Ordering::Relaxed);
+    }
+
+    pub fn add_ptm_failed(&self, count: u64) {
+        self.inner.ptm_failed.fetch_add(count, Ordering::Relaxed);
+    }
+
+    pub fn add_ptm_failed_canonical_oob(&self, count: u64) {
+        self.inner
+            .ptm_failed_canonical_oob
+            .fetch_add(count, Ordering::Relaxed);
+    }
+
+    pub fn add_ptm_failed_vsp_deletion(&self, count: u64) {
+        self.inner
+            .ptm_failed_vsp_deletion
+            .fetch_add(count, Ordering::Relaxed);
+    }
+
+    pub fn add_ptm_failed_mapper_oob(&self, count: u64) {
+        self.inner
+            .ptm_failed_mapper_oob
+            .fetch_add(count, Ordering::Relaxed);
+    }
+
+    pub fn add_ptm_failed_vsp_unresolvable(&self, count: u64) {
+        self.inner
+            .ptm_failed_vsp_unresolvable
+            .fetch_add(count, Ordering::Relaxed);
+    }
+
+    pub fn add_ptm_failed_isoform_oob(&self, count: u64) {
+        self.inner
+            .ptm_failed_isoform_oob
+            .fetch_add(count, Ordering::Relaxed);
+    }
+
+    pub fn add_ptm_failed_residue_mismatch(&self, count: u64) {
+        self.inner
+            .ptm_failed_residue_mismatch
+            .fetch_add(count, Ordering::Relaxed);
+    }
+
     pub fn entries(&self) -> u64 {
         self.inner.entries_parsed.load(Ordering::Relaxed)
     }
@@ -84,6 +150,42 @@ impl Metrics {
         self.inner.isoforms_count.load(Ordering::Relaxed)
     }
 
+    pub fn ptm_attempted(&self) -> u64 {
+        self.inner.ptm_attempted.load(Ordering::Relaxed)
+    }
+
+    pub fn ptm_mapped(&self) -> u64 {
+        self.inner.ptm_mapped.load(Ordering::Relaxed)
+    }
+
+    pub fn ptm_failed(&self) -> u64 {
+        self.inner.ptm_failed.load(Ordering::Relaxed)
+    }
+
+    pub fn ptm_failed_canonical_oob(&self) -> u64 {
+        self.inner.ptm_failed_canonical_oob.load(Ordering::Relaxed)
+    }
+
+    pub fn ptm_failed_vsp_deletion(&self) -> u64 {
+        self.inner.ptm_failed_vsp_deletion.load(Ordering::Relaxed)
+    }
+
+    pub fn ptm_failed_mapper_oob(&self) -> u64 {
+        self.inner.ptm_failed_mapper_oob.load(Ordering::Relaxed)
+    }
+
+    pub fn ptm_failed_vsp_unresolvable(&self) -> u64 {
+        self.inner.ptm_failed_vsp_unresolvable.load(Ordering::Relaxed)
+    }
+
+    pub fn ptm_failed_isoform_oob(&self) -> u64 {
+        self.inner.ptm_failed_isoform_oob.load(Ordering::Relaxed)
+    }
+
+    pub fn ptm_failed_residue_mismatch(&self) -> u64 {
+        self.inner.ptm_failed_residue_mismatch.load(Ordering::Relaxed)
+    }
+
     pub fn elapsed_secs(&self) -> f64 {
         self.inner.start_time.elapsed().as_secs_f64()
     }
@@ -97,6 +199,16 @@ impl Metrics {
         let bytes_written = self.inner.bytes_written.load(Ordering::Relaxed);
         let features = self.inner.features_count.load(Ordering::Relaxed);
         let isoforms = self.inner.isoforms_count.load(Ordering::Relaxed);
+        let ptm_attempted = self.inner.ptm_attempted.load(Ordering::Relaxed);
+        let ptm_mapped = self.inner.ptm_mapped.load(Ordering::Relaxed);
+        let ptm_failed = self.inner.ptm_failed.load(Ordering::Relaxed);
+        let ptm_failed_canonical_oob = self.inner.ptm_failed_canonical_oob.load(Ordering::Relaxed);
+        let ptm_failed_vsp_deletion = self.inner.ptm_failed_vsp_deletion.load(Ordering::Relaxed);
+        let ptm_failed_mapper_oob = self.inner.ptm_failed_mapper_oob.load(Ordering::Relaxed);
+        let ptm_failed_vsp_unresolvable = self.inner.ptm_failed_vsp_unresolvable.load(Ordering::Relaxed);
+        let ptm_failed_isoform_oob = self.inner.ptm_failed_isoform_oob.load(Ordering::Relaxed);
+        let ptm_failed_residue_mismatch =
+            self.inner.ptm_failed_residue_mismatch.load(Ordering::Relaxed);
 
         let entries_per_sec = entries as f64 / elapsed;
         let mb_read = bytes_read as f64 / (1024.0 * 1024.0);
@@ -107,6 +219,15 @@ impl Metrics {
         eprintln!("Batches written: {batches}");
         eprintln!("Features:        {features}");
         eprintln!("Isoforms:        {isoforms}");
+        eprintln!("PTMs attempted:  {ptm_attempted}");
+        eprintln!("PTMs mapped:     {ptm_mapped}");
+        eprintln!("PTMs failed:     {ptm_failed}");
+        eprintln!("  - canonical_oob:    {ptm_failed_canonical_oob}");
+        eprintln!("  - vsp_deletion:     {ptm_failed_vsp_deletion}");
+        eprintln!("  - mapper_oob:       {ptm_failed_mapper_oob}");
+        eprintln!("  - vsp_unresolvable: {ptm_failed_vsp_unresolvable}");
+        eprintln!("  - isoform_oob:      {ptm_failed_isoform_oob}");
+        eprintln!("  - residue_mismatch: {ptm_failed_residue_mismatch}");
         eprintln!("Time elapsed:    {elapsed:.2}s");
         eprintln!("Throughput:      {entries_per_sec:.0} entries/sec");
         eprintln!("Bytes read:      {mb_read:.2} MB");

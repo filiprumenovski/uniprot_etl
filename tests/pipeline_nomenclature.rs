@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::fs;
 use std::io::Cursor;
+use std::sync::Arc;
 
 use arrow::array::{Array, Int8Array, ListArray, StringArray, StructArray};
 use crossbeam_channel::unbounded;
@@ -12,14 +14,19 @@ use uniprot_etl::pipeline::parser::parse_entries;
 #[test]
 fn parses_nomenclature_and_structures_from_sample() -> Result<()> {
     // Load small sample XML (includes TP53-like fields)
-    let xml = fs::read_to_string("data/raw/sample_uniprot.xml")?;
+    let xml_path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/raw/sample_uniprot.xml");
+    let xml = fs::read_to_string(xml_path)?;
     let mut reader = Reader::from_reader(Cursor::new(xml.as_bytes()));
     reader.config_mut().trim_text(true);
 
     let metrics = Metrics::new();
     let (tx, rx) = unbounded();
 
-    parse_entries(reader, tx, &metrics, 16)?;
+    let mut sidecar = HashMap::new();
+    // sample_uniprot.xml contains one isoform ref: P04637-1
+    sidecar.insert("P04637-1".to_string(), "MEEPQSDPSV".to_string());
+    parse_entries(reader, tx, &metrics, 16, Some(Arc::new(sidecar)))?;
 
     let batches: Vec<_> = rx.iter().collect();
     assert_eq!(batches.len(), 1);
@@ -43,7 +50,15 @@ fn parses_nomenclature_and_structures_from_sample() -> Result<()> {
         .as_any()
         .downcast_ref::<StringArray>()
         .unwrap();
-    assert_eq!(ids.value(0), "P04637");
+    assert_eq!(ids.value(0), "P04637-1");
+
+    // parent_id anchors back to canonical accession
+    let parent_id = batch
+        .column(idx("parent_id"))
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+    assert_eq!(parent_id.value(0), "P04637");
 
     // New name fields
     let entry_name = batch

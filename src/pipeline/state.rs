@@ -28,6 +28,8 @@ pub enum State {
     FeaturePosition,
     FeatureBegin,
     FeatureEnd,
+    FeatureOriginal,
+    FeatureVariation,
     Comment,
     CommentSubcellularLocation,
     CommentLocation,
@@ -58,6 +60,8 @@ impl State {
                 | State::CommentLocation
                 | State::CommentIsoformId
                 | State::CommentIsoformNote
+                | State::FeatureOriginal
+                | State::FeatureVariation
         )
     }
 }

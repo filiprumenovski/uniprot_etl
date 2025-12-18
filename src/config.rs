@@ -25,6 +25,9 @@ pub struct StorageConfig {
     /// Path to input UniProt XML file (supports .xml and .xml.gz)
     /// Can be relative to root or absolute
     pub input_path: Option<PathBuf>,
+    /// Path to isoform sidecar FASTA file (varsplic.fasta), used for isoform-centric rows.
+    /// Can be relative to root or absolute.
+    pub fasta_sidecar_path: Option<PathBuf>,
     /// Path to output Parquet file
     #[serde(default = "default_output_path")]
     pub output_path: PathBuf,
@@ -174,6 +177,7 @@ impl Settings {
         cli_input: Option<PathBuf>,
         cli_output: Option<PathBuf>,
         cli_batch_size: Option<usize>,
+        cli_fasta_sidecar: Option<PathBuf>,
     ) -> Self {
         if let Some(input) = cli_input {
             self.storage.input_path = Some(input);
@@ -190,6 +194,11 @@ impl Settings {
             eprintln!("[INFO] CLI override: batch_size");
         }
 
+        if let Some(fasta) = cli_fasta_sidecar {
+            self.storage.fasta_sidecar_path = Some(fasta);
+            eprintln!("[INFO] CLI override: fasta_sidecar_path");
+        }
+
         self
     }
 
@@ -201,6 +210,10 @@ impl Settings {
 
         if let Some(ref mut input_path) = self.storage.input_path {
             *input_path = resolve_path(input_path, root)?;
+        }
+
+        if let Some(ref mut fasta_path) = self.storage.fasta_sidecar_path {
+            *fasta_path = resolve_path(fasta_path, root)?;
         }
 
         Ok(())
@@ -230,6 +243,7 @@ impl Default for Settings {
             version: "1.0".to_string(),
             storage: StorageConfig {
                 input_path: None,
+                fasta_sidecar_path: None,
                 output_path: default_output_path(),
                 temp_dir: default_temp_dir(),
             },

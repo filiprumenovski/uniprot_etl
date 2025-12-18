@@ -27,6 +27,11 @@ pub fn create_uniprot_schema() -> Schema {
         Field::new("organism_name", DataType::Utf8, true),
         Field::new("existence", DataType::Int8, true),
         Field::new("structures", structures_list_type(), true),
+        // Super-Substrate columns (appended to preserve indices)
+        // - parent_id: canonical/base accession anchoring all isoforms
+        // - ptm_sites: residue-centric PTM representation for ESM-2
+        Field::new("parent_id", DataType::Utf8, false),
+        Field::new("ptm_sites", ptm_sites_list_type(), true),
     ])
 }
 
@@ -101,4 +106,36 @@ fn structures_list_type() -> DataType {
         DataType::Struct(structure_struct_fields()),
         true,
     )))
+}
+
+/// PTM sites: List<Struct<site_index, site_aa, modifications>>
+fn ptm_sites_list_type() -> DataType {
+    DataType::List(Arc::new(Field::new(
+        "item",
+        DataType::Struct(ptm_site_struct_fields()),
+        true,
+    )))
+}
+
+fn ptm_site_struct_fields() -> Fields {
+    Fields::from(vec![
+        Field::new("site_index", DataType::Int32, false),
+        Field::new("site_aa", DataType::Utf8, false),
+        Field::new("modifications", ptm_modifications_list_type(), true),
+    ])
+}
+
+fn ptm_modifications_list_type() -> DataType {
+    DataType::List(Arc::new(Field::new(
+        "item",
+        DataType::Struct(ptm_modification_struct_fields()),
+        true,
+    )))
+}
+
+fn ptm_modification_struct_fields() -> Fields {
+    Fields::from(vec![
+        Field::new("mod_type", DataType::Int32, false),
+        Field::new("confidence_score", DataType::Float32, false),
+    ])
 }

@@ -9,6 +9,8 @@ use crate::metrics::Metrics;
 use crate::pipeline::batcher::Batcher;
 use crate::pipeline::scratch::EntryScratch;
 use crate::pipeline::state::State;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Parses UniProt XML entries and sends RecordBatches to the channel.
 pub fn parse_entries<R: BufRead>(
@@ -16,8 +18,9 @@ pub fn parse_entries<R: BufRead>(
     sender: Sender<RecordBatch>,
     metrics: &Metrics,
     batch_size: usize,
+    sidecar_fasta: Option<Arc<HashMap<String, String>>>,
 ) -> Result<()> {
-    let mut batcher = Batcher::with_batch_size(sender, metrics.clone(), batch_size);
+    let mut batcher = Batcher::with_batch_size(sender, metrics.clone(), batch_size, sidecar_fasta);
     let mut scratch = EntryScratch::new();
     let mut state = State::Root;
     let mut buf = Vec::with_capacity(4096);
@@ -132,6 +135,9 @@ fn handle_start_tag(
         }
         (State::Entry, b"feature") => {
             scratch.current_feature.clear();
+            if let Some(id) = get_attribute(e, b"id")? {
+                scratch.current_feature.id = Some(id);
+            }
             if let Some(ft) = get_attribute(e, b"type")? {
                 scratch.current_feature.feature_type = ft;
             }
@@ -142,6 +148,14 @@ fn handle_start_tag(
                 scratch.current_feature.evidence_keys = parse_evidence_refs(&ev);
             }
             State::Feature
+        }
+        (State::Feature, b"original") => {
+            scratch.text_buffer.clear();
+            State::FeatureOriginal
+        }
+        (State::Feature, b"variation") => {
+            scratch.text_buffer.clear();
+            State::FeatureVariation
         }
         (State::Feature, b"location") => State::FeatureLocation,
         (State::FeatureLocation, b"position") => {
@@ -194,6 +208,15 @@ fn handle_start_tag(
         (State::CommentIsoform, b"sequence") => {
             if let Some(ref_attr) = get_attribute(e, b"ref")? {
                 scratch.current_isoform.isoform_sequence = Some(ref_attr);
+            }
+
+            // UniProt isoforms can list one or more "described" sequence refs (VSP_...)
+            // which correspond to <feature type="splice variant" id="VSP_..."> edits.
+            let seq_type = get_attribute(e, b"type")?.unwrap_or_default();
+            if let Some(ref_attr) = scratch.current_isoform.isoform_sequence.as_deref() {
+                if seq_type == "described" || ref_attr.starts_with("VSP_") {
+                    scratch.current_isoform.vsp_ids.push(ref_attr.to_string());
+                }
             }
             State::CommentIsoformSequence
         }
@@ -264,6 +287,30 @@ fn handle_empty_tag(
                 scratch.current_feature.end = pos.parse().ok();
             }
         }
+        // UniProt isoform <sequence .../> tags in alternative-products comments are commonly
+        // self-closing. We need to capture both:
+        // - displayed refs (e.g. Q9...-2) for sidecar lookup
+        // - described refs (e.g. VSP_...) to scope splice-variant edits per isoform
+        (State::CommentIsoform, b"sequence") => {
+            let seq_type = get_attribute(e, b"type")?.unwrap_or_default();
+            if let Some(ref_attr) = get_attribute(e, b"ref")? {
+                if seq_type == "described" || ref_attr.starts_with("VSP_") {
+                    scratch.current_isoform.vsp_ids.push(ref_attr);
+                } else {
+                    // Keep the most useful non-VSP ref for FASTA sidecar lookup.
+                    // Avoid overwriting an existing accession-like ref with something else.
+                    if scratch.current_isoform.isoform_sequence.is_none()
+                        || scratch
+                            .current_isoform
+                            .isoform_sequence
+                            .as_deref()
+                            .is_some_and(|s| s.starts_with("VSP_"))
+                    {
+                        scratch.current_isoform.isoform_sequence = Some(ref_attr);
+                    }
+                }
+            }
+        }
         (State::Entry, b"evidence") => {
             if let Some(key) = get_attribute(e, b"key")? {
                 if let Some(eco) = get_attribute(e, b"type")? {
@@ -298,6 +345,8 @@ fn handle_end_tag(
         (State::Accession, b"accession") => {
             if !scratch.has_primary_accession {
                 scratch.accession = std::mem::take(&mut scratch.text_buffer);
+                // First accession is the canonical anchor.
+                scratch.parent_id = scratch.accession.clone();
                 scratch.has_primary_accession = true;
             } else {
                 scratch.text_buffer.clear();
@@ -340,6 +389,14 @@ fn handle_end_tag(
                 .features
                 .push(std::mem::take(&mut scratch.current_feature));
             State::Entry
+        }
+        (State::FeatureOriginal, b"original") => {
+            scratch.current_feature.original = Some(std::mem::take(&mut scratch.text_buffer));
+            State::Feature
+        }
+        (State::FeatureVariation, b"variation") => {
+            scratch.current_feature.variation = Some(std::mem::take(&mut scratch.text_buffer));
+            State::Feature
         }
         (State::FeaturePosition, b"position") => State::FeatureLocation,
         (State::FeatureBegin, b"begin") => State::FeatureLocation,

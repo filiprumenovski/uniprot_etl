@@ -3,20 +3,30 @@ use std::collections::HashMap;
 /// Per-feature scratch data
 #[derive(Debug, Default, Clone)]
 pub struct FeatureScratch {
+    pub id: Option<String>,
     pub feature_type: String,
     pub description: Option<String>,
     pub start: Option<i32>,
     pub end: Option<i32>,
     pub evidence_keys: Vec<String>,
+    /// Only used for <feature type="variant sequence">.
+    /// Captures <original>...</original> text.
+    pub original: Option<String>,
+    /// Only used for <feature type="variant sequence">.
+    /// Captures <variation>...</variation> text.
+    pub variation: Option<String>,
 }
 
 impl FeatureScratch {
     pub fn clear(&mut self) {
+        self.id = None;
         self.feature_type.clear();
         self.description = None;
         self.start = None;
         self.end = None;
         self.evidence_keys.clear();
+        self.original = None;
+        self.variation = None;
     }
 }
 
@@ -39,6 +49,8 @@ impl LocationScratch {
 pub struct IsoformScratch {
     pub isoform_id: String,
     pub isoform_sequence: Option<String>,
+    /// UniProt "described" sequence refs (usually VSP_...) that define how this isoform differs.
+    pub vsp_ids: Vec<String>,
     pub isoform_note: Option<String>,
 }
 
@@ -46,6 +58,7 @@ impl IsoformScratch {
     pub fn clear(&mut self) {
         self.isoform_id.clear();
         self.isoform_sequence = None;
+        self.vsp_ids.clear();
         self.isoform_note = None;
     }
 }
@@ -56,6 +69,9 @@ impl IsoformScratch {
 pub struct EntryScratch {
     /// Primary accession (first <accession> element)
     pub accession: String,
+    /// Canonical/base accession used as parent_id for isoform rows.
+    /// This is always the first <accession> encountered.
+    pub parent_id: String,
     /// Full amino acid sequence
     pub sequence: String,
     /// NCBI Taxonomy ID
@@ -108,6 +124,7 @@ impl EntryScratch {
     /// Resets all fields for the next entry
     pub fn clear(&mut self) {
         self.accession.clear();
+        self.parent_id.clear();
         self.sequence.clear();
         self.organism_id = None;
         self.entry_name = None;
@@ -125,6 +142,53 @@ impl EntryScratch {
         self.current_isoform.clear();
         self.text_buffer.clear();
         self.has_primary_accession = false;
+    }
+
+    /// Returns the canonical amino acid at a 1-based XML coordinate.
+    ///
+    /// IMPORTANT: This must be called BEFORE any coordinate shifting.
+    pub fn canonical_aa_at_1based(&self, pos_1based: i32) -> Option<u8> {
+        if pos_1based <= 0 {
+            return None;
+        }
+        let idx = (pos_1based as usize).saturating_sub(1);
+        self.sequence.as_bytes().get(idx).copied()
+    }
+
+    /// Computes confidence score from evidence keys using MAX priority mapping.
+    /// Mapping:
+    /// - ECO:0000269 -> 1.0 (Experimental)
+    /// - ECO:0007744 -> 0.8 (High-throughput)
+    /// - ECO:0000250 -> 0.4 (Homology)
+    /// - ECO:0000255 -> 0.1 (Predicted)
+    /// - others/unknown/absent -> 0.1
+    pub fn max_confidence_for_evidence(&self, keys: &[String]) -> f32 {
+        if keys.is_empty() {
+            return 0.1;
+        }
+
+        let mut best = 0.1f32;
+        for key in keys {
+            let Some(eco) = self.evidence_map.get(key) else {
+                continue;
+            };
+
+            let score = match eco.as_str() {
+                "ECO:0000269" => 1.0,
+                "ECO:0007744" => 0.8,
+                "ECO:0000250" => 0.4,
+                "ECO:0000255" => 0.1,
+                _ => 0.1,
+            };
+            if score > best {
+                best = score;
+                if (best - 1.0).abs() < f32::EPSILON {
+                    break;
+                }
+            }
+        }
+
+        best
     }
 
     /// Resolves evidence keys to ECO codes (semicolon-joined)

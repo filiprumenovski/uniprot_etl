@@ -24,4 +24,9 @@ pub struct Args {
     /// Overrides config.yaml value if provided
     #[arg(short, long)]
     pub batch_size: Option<usize>,
+
+    /// Path to isoform sidecar FASTA (varsplic.fasta, unzipped)
+    /// Overrides config.yaml value if provided
+    #[arg(long)]
+    pub fasta_sidecar: Option<PathBuf>,
 }

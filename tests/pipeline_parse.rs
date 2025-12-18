@@ -1,8 +1,10 @@
 use std::io::Cursor;
+use std::sync::Arc;
 
 use arrow::array::{Array, Int32Array, ListArray, StringArray, StructArray};
 use crossbeam_channel::unbounded;
 use quick_xml::Reader;
+use std::collections::HashMap;
 
 use uniprot_etl::error::Result;
 use uniprot_etl::metrics::Metrics;
@@ -50,7 +52,9 @@ fn parses_single_entry_into_record_batch() -> Result<()> {
     let metrics = Metrics::new();
     let (tx, rx) = unbounded();
 
-    parse_entries(reader, tx, &metrics, 16)?;
+    let mut sidecar = HashMap::new();
+    sidecar.insert("Q9TEST-1".to_string(), "MTAK".to_string());
+    parse_entries(reader, tx, &metrics, 16, Some(Arc::new(sidecar)))?;
 
     let batches: Vec<_> = rx.iter().collect();
     assert_eq!(batches.len(), 1);
@@ -63,7 +67,7 @@ fn parses_single_entry_into_record_batch() -> Result<()> {
         .as_any()
         .downcast_ref::<StringArray>()
         .unwrap();
-    assert_eq!(ids.value(0), "Q9TEST");
+    assert_eq!(ids.value(0), "Q9TEST-1");
 
     let sequences = batch
         .column(1)
@@ -71,6 +75,20 @@ fn parses_single_entry_into_record_batch() -> Result<()> {
         .downcast_ref::<StringArray>()
         .unwrap();
     assert_eq!(sequences.value(0), "MTAK");
+
+    // parent_id appended (schema extension)
+    let schema = batch.schema();
+    let parent_idx = schema
+        .fields()
+        .iter()
+        .position(|f| f.name() == "parent_id")
+        .expect("parent_id");
+    let parents = batch
+        .column(parent_idx)
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+    assert_eq!(parents.value(0), "Q9TEST");
 
     let organisms = batch
         .column(2)
@@ -218,7 +236,7 @@ fn parses_multiple_entries_and_handles_missing_evidence() -> Result<()> {
     let metrics = Metrics::new();
     let (tx, rx) = unbounded();
 
-    parse_entries(reader, tx, &metrics, 16)?;
+    parse_entries(reader, tx, &metrics, 16, None)?;
 
     let batches: Vec<_> = rx.iter().collect();
     assert_eq!(batches.len(), 1);

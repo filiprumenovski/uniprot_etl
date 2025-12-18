@@ -9,3 +9,6 @@
 
 # Rust target build output
 /target/
+
+# Per-run artifacts (logs, snapshots, reports, profiles)
+/runs/

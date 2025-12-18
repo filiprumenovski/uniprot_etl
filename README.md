@@ -17,8 +17,8 @@ just dev-check
 # Build release binary
 cargo build --release
 
-# Run pipeline with default config
-just run --input data/raw/uniprot_sprot.xml.gz --output data/parquet/output.parquet
+# Run pipeline (config.yaml is the source of truth)
+just run data/raw/uniprot_sprot.xml.gz
 
 # Run linter
 just lint
@@ -34,6 +34,12 @@ just clean-data-dry
 
 # Profile with flamegraph
 just profile-flamegraph bench="flamegraph_benchmark"
+
+# Artifacts are written under runs/<run_id>/profiles/
+
+# Profile the actual ETL binary (writes etl.log/config_snapshot.yaml/report.yaml
+# and the flamegraph into the same runs/<run_id>/ directory)
+just profile-pipeline flags='--release --args "--input data/raw/uniprot_sprot.xml.gz --output data/parquet/output.parquet"'
 ```
 
 ### Configuration
@@ -126,6 +132,12 @@ just bench
 
 # Flamegraph profiling (requires cargo-flamegraph)
 just profile-flamegraph bench="flamegraph_benchmark"
+
+# Optionally force a deterministic run id:
+just profile-flamegraph bench="flamegraph_benchmark" run_id="run_20251218_120000"
+
+# Pipeline profiling (same run dir contains log/config/report + flamegraph)
+just profile-pipeline flags='--release --args "--input data/raw/uniprot_sprot.xml.gz"'
 ```
 
 ### Code Organization
@@ -180,7 +192,7 @@ Target metrics (validated in CI):
 - **Speed:** <10 minutes on commodity hardware (4-core, 8GB RAM, SSD).
 - **Throughput:** ~1M entries/min after warm-up.
 
-See [benches/](benches/) for profiling scripts and [FLAMEGRAPH_INSTRUCTIONS.md](FLAMEGRAPH_INSTRUCTIONS.md) for detailed profiling guidance.
+See [benches/](benches/) for profiling scripts and [docs/flamegraph.md](docs/flamegraph.md) for detailed profiling guidance.
 
 ## Troubleshooting
 

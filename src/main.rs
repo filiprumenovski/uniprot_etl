@@ -74,8 +74,8 @@ fn main() -> Result<()> {
     let root = env::current_dir()?;
     settings.resolve_paths(&root)?;
 
-    // Create run context (timestamped directory)
-    let run_context = RunContext::new(&settings.runs.runs_dir)?;
+    // Create run context (timestamped directory, optionally overridden)
+    let run_context = RunContext::new_with_run_id(&settings.runs.runs_dir, args.run_id)?;
 
     // Set up tee logging to both file and stderr
     let log_file = OpenOptions::new()

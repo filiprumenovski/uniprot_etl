@@ -29,4 +29,11 @@ pub struct Args {
     /// Overrides config.yaml value if provided
     #[arg(long)]
     pub fasta_sidecar: Option<PathBuf>,
+
+    /// Override the generated run identifier (directory name under runs/).
+    ///
+    /// Intended for profiling/wrappers that need a deterministic run directory.
+    /// If the value does not start with "run_", it will be prefixed.
+    #[arg(long)]
+    pub run_id: Option<String>,
 }

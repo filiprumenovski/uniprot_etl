@@ -2,7 +2,7 @@
 //!
 //! Creates timestamped run directories and manages cleanup of old runs.
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Utc};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -22,13 +22,43 @@ impl RunContext {
     ///
     /// Creates the directory structure: `{runs_dir}/run_{YYYYMMDD_HHMMSS}/`
     pub fn new(runs_dir: &Path) -> Result<Self> {
-        let start_time = Utc::now();
-        let run_id = format!("run_{}", start_time.format("%Y%m%d_%H%M%S"));
-        let run_dir = runs_dir.join(&run_id);
+        Self::new_with_run_id(runs_dir, None)
+    }
 
-        // Create the runs directory if it doesn't exist
-        fs::create_dir_all(&run_dir)
-            .with_context(|| format!("Failed to create run directory: {}", run_dir.display()))?;
+    /// Create a new run context, optionally forcing the run id.
+    ///
+    /// When `run_id_override` is provided, it is validated and normalized.
+    /// The created directory must not already exist.
+    pub fn new_with_run_id(runs_dir: &Path, run_id_override: Option<String>) -> Result<Self> {
+        let start_time = Utc::now();
+
+        let run_id = match &run_id_override {
+            Some(raw) => normalize_run_id(raw)?,
+            None => format!("run_{}", start_time.format("%Y%m%d_%H%M%S")),
+        };
+
+        let run_dir = runs_dir.join(&run_id);
+        if run_dir.exists() {
+            // If a wrapper explicitly requested a run id, allow reusing a freshly-created
+            // directory intended to receive profiling artifacts.
+            if run_id_override.is_some() {
+                if !is_reusable_precreated_run_dir(&run_dir)? {
+                    return Err(anyhow!(
+                        "Run directory already exists and is not reusable: {}",
+                        run_dir.display()
+                    ));
+                }
+            } else {
+                return Err(anyhow!(
+                    "Run directory already exists: {}",
+                    run_dir.display()
+                ));
+            }
+        } else {
+            fs::create_dir_all(&run_dir).with_context(|| {
+                format!("Failed to create run directory: {}", run_dir.display())
+            })?;
+        }
 
         Ok(Self {
             run_dir,
@@ -51,6 +81,69 @@ impl RunContext {
     pub fn config_snapshot_path(&self) -> PathBuf {
         self.run_dir.join("config_snapshot.yaml")
     }
+}
+
+fn normalize_run_id(raw: &str) -> Result<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(anyhow!("run_id cannot be empty"));
+    }
+
+    if trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..") {
+        return Err(anyhow!("run_id contains invalid path characters"));
+    }
+
+    let normalized = if trimmed.starts_with("run_") {
+        trimmed.to_string()
+    } else {
+        format!("run_{trimmed}")
+    };
+
+    if !normalized
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(anyhow!(
+            "run_id may only contain ASCII letters/numbers, '_' and '-'"
+        ));
+    }
+
+    Ok(normalized)
+}
+
+fn is_reusable_precreated_run_dir(run_dir: &Path) -> Result<bool> {
+    if !run_dir.is_dir() {
+        return Ok(false);
+    }
+
+    // Allow either an empty directory, or a directory containing only a `profiles/` folder.
+    let entries = fs::read_dir(run_dir)
+        .with_context(|| format!("Failed to read run directory: {}", run_dir.display()))?;
+
+    let mut saw_entries = false;
+    for entry in entries {
+        let entry = entry.with_context(|| {
+            format!("Failed to read directory entry in {}", run_dir.display())
+        })?;
+        saw_entries = true;
+
+        let Some(name) = entry.file_name().to_str().map(|s| s.to_string()) else {
+            return Ok(false);
+        };
+
+        if name == "profiles" {
+            if !entry.path().is_dir() {
+                return Ok(false);
+            }
+            continue;
+        }
+
+        // Any other file/dir indicates this isn't a fresh pre-created directory.
+        return Ok(false);
+    }
+
+    // If we reached here, the directory was empty or only contained `profiles/`.
+    Ok(true)
 }
 
 /// Clean up old run directories, keeping only the most recent `keep_count`.

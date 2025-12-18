@@ -21,14 +21,11 @@ dev-check:
 bench:
     cargo bench
 
-run args="":
-    cargo run --release --bin uniprot_etl -- {{args}}
+run input_path:
+    cargo run --release --bin uniprot_etl -- --config config.yaml --input "{{input_path}}"
 
-pipeline input_path:
-    cargo run --release --bin uniprot_etl -- --input "{{input_path}}"
-
-pipeline-debug input_path:
-    cargo run --bin uniprot_etl -- --input "{{input_path}}"
+run-debug input_path:
+    cargo run --bin uniprot_etl -- --config config.yaml --input "{{input_path}}"
 
 clean-data flags="--force":
     bash scripts/clean_data.sh {{flags}}
@@ -39,5 +36,8 @@ clean-data-dry:
 fetch-data url out_file="" flags="":
     UNIPROT_URL={{url}} OUT_FILE={{out_file}} bash scripts/fetch_uniprot.sh {{flags}}
 
-profile-flamegraph bench="flamegraph_benchmark" flags="":
-    BENCH_TARGET={{bench}} bash scripts/profile_flamegraph.sh {{flags}}
+profile-flamegraph bench="flamegraph_benchmark" run_id="" runs_dir="runs" flags="":
+    BENCH_TARGET={{bench}} bash scripts/profile_flamegraph.sh --runs-dir {{runs_dir}} {{if run_id != "" { "--run-id " + run_id } else { "" }}} {{flags}}
+
+profile-pipeline run_id="" runs_dir="runs" flags="":
+    bash scripts/profile_pipeline_flamegraph.sh --runs-dir {{runs_dir}} {{if run_id != "" { "--run-id " + run_id } else { "" }}} {{flags}}

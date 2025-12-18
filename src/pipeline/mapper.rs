@@ -36,6 +36,17 @@ impl CoordinateMapper {
         Self::from_entry_for_vsp_ids(scratch, &[])
     }
 
+    /// Returns the number of VSP edits in this mapper (for diagnostics).
+    pub fn edit_count(&self) -> usize {
+        self.edits.len()
+    }
+
+    /// Returns the total delta (sum of all edit deltas) for this mapper.
+    /// Positive = net insertion, Negative = net deletion.
+    pub fn total_delta(&self) -> i32 {
+        self.edits.iter().map(|e| e.delta).sum()
+    }
+
     /// Builds a mapper using only splice-variant edits referenced by the isoform.
     ///
     /// If `vsp_ids` is empty, returns an identity mapper.
@@ -143,6 +154,8 @@ impl CoordinateMapper {
                 return Err(MapFailure::VspDeletionEvent);
             }
 
+            // Requirement 1: Identity mapping for substitutions (delta == 0)
+            // Within-span substitution: position maps to itself with accumulated shift
             if edit.delta == 0 {
                 let mapped = original_pos_1based + shift;
                 return if mapped <= 0 {
@@ -152,12 +165,21 @@ impl CoordinateMapper {
                 };
             }
 
-            let mapped = edit.begin_1based + shift;
-            return if mapped <= 0 {
-                Err(MapFailure::PtmOutOfBounds)
-            } else {
-                Ok(mapped)
-            };
+            // Requirement 2: For length-changing indels (delta != 0),
+            // only the FIRST residue of the segment can be mapped deterministically.
+            if original_pos_1based == edit.begin_1based {
+                let mapped = edit.begin_1based + shift;
+                return if mapped <= 0 {
+                    Err(MapFailure::PtmOutOfBounds)
+                } else {
+                    Ok(mapped)
+                };
+            }
+
+            // Internal residues (not at exact start) have no deterministic isoform coordinate.
+            // Previously these were "snapped" to begin, causing RESIDUE_MISMATCH.
+            // Now they are cleanly rejected as VspUnresolvable.
+            return Err(MapFailure::VspUnresolvable);
         }
 
         let mapped = original_pos_1based + shift;
@@ -168,8 +190,37 @@ impl CoordinateMapper {
     }
 }
 
+/// Returns the amino acid count for a valid sequence, or 0 for descriptive notes.
+///
+/// A string is considered a descriptive note (returning 0) if it contains:
+/// - Whitespace (spaces indicate free text like "See Ref 2")
+/// - Digits (e.g., "In isoform 3")
+/// - Non-amino acid characters
+///
+/// This prevents "phantom shifts" where metadata strings are misinterpreted as
+/// amino acid sequences, causing coordinate drift and ISOFORM_OOB errors.
 fn cleaned_aa_len(text: &str) -> usize {
-    text.bytes().filter(|b| b.is_ascii_alphabetic()).count()
+    let trimmed = text.trim();
+
+    // Empty string = deletion (length 0)
+    if trimmed.is_empty() {
+        return 0;
+    }
+
+    // Contamination check: spaces or digits indicate descriptive text
+    if trimmed.contains(' ') || trimmed.bytes().any(|b| b.is_ascii_digit()) {
+        return 0; // Treat as note, not sequence
+    }
+
+    // Valid AA check: all characters must be amino acid letters
+    // Standard 20 + selenocysteine (U) + pyrrolysine (O) + ambiguous (X, B, Z, J)
+    const VALID_AA: &[u8] = b"ACDEFGHIKLMNPQRSTUVWXYZBJOacdefghiklmnpqrstuvwxyzbjo";
+
+    if trimmed.bytes().all(|b| VALID_AA.contains(&b)) {
+        trimmed.len()
+    } else {
+        0 // Contains invalid characters - treat as note
+    }
 }
 
 fn is_missing_variant(variation: &str, description: &str) -> bool {
@@ -211,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn non_missing_indel_maps_to_begin() {
+    fn non_missing_indel_rejects_interior() {
         let mut scratch = EntryScratch::new();
         scratch.sequence = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string();
 
@@ -227,9 +278,64 @@ mod tests {
         scratch.features.push(vsp);
         let mapper = CoordinateMapper::from_entry_for_vsp_ids(&scratch, &["VSP_TEST".to_string()]);
 
-        // Within-span point maps to begin.
-        assert_eq!(mapper.map_point_1based(6).unwrap(), 5);
-        // Downstream shifts.
+        // Exact start maps through.
+        assert_eq!(mapper.map_point_1based(5).unwrap(), 5);
+
+        // Interior positions are unresolvable (not snapped to start).
+        assert_eq!(
+            mapper.map_point_1based(6),
+            Err(MapFailure::VspUnresolvable)
+        );
+        assert_eq!(
+            mapper.map_point_1based(7),
+            Err(MapFailure::VspUnresolvable)
+        );
+
+        // Downstream still shifts by delta (-2).
         assert_eq!(mapper.map_point_1based(10).unwrap(), 8);
+    }
+
+    #[test]
+    fn malformed_variation_treated_as_note() {
+        // Strings with spaces/digits should return 0 length (bullshit detection)
+        assert_eq!(cleaned_aa_len("See Ref 2"), 0);
+        assert_eq!(cleaned_aa_len("In isoform 3"), 0);
+        assert_eq!(cleaned_aa_len("123"), 0);
+        assert_eq!(cleaned_aa_len("ABC DEF"), 0);
+
+        // Valid amino acid sequences return actual length
+        assert_eq!(cleaned_aa_len("ACGT"), 4);
+        assert_eq!(cleaned_aa_len(""), 0);
+        assert_eq!(cleaned_aa_len("X"), 1);
+        assert_eq!(cleaned_aa_len("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSH"), 51);
+
+        // Mixed case is valid
+        assert_eq!(cleaned_aa_len("AcGt"), 4);
+    }
+
+    #[test]
+    fn substitution_maps_identity() {
+        let mut scratch = EntryScratch::new();
+        scratch.sequence = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string();
+
+        // Replace positions 5..7 (len=3) with len=3 -> delta=0 (substitution).
+        let vsp = FeatureScratch {
+            id: Some("VSP_TEST".to_string()),
+            feature_type: "variant sequence".to_string(),
+            start: Some(5),
+            end: Some(7),
+            variation: Some("XYZ".to_string()),
+            ..Default::default()
+        };
+        scratch.features.push(vsp);
+        let mapper = CoordinateMapper::from_entry_for_vsp_ids(&scratch, &["VSP_TEST".to_string()]);
+
+        // All positions within substitution map 1-to-1.
+        assert_eq!(mapper.map_point_1based(5).unwrap(), 5);
+        assert_eq!(mapper.map_point_1based(6).unwrap(), 6);
+        assert_eq!(mapper.map_point_1based(7).unwrap(), 7);
+
+        // Downstream unchanged (delta=0).
+        assert_eq!(mapper.map_point_1based(10).unwrap(), 10);
     }
 }

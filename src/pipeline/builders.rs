@@ -335,13 +335,19 @@ impl EntryBuilders {
             if mapped_idx0 >= isoform_bytes.len() {
                 self.metrics.add_ptm_failed(1);
                 self.metrics.add_ptm_failed_isoform_oob(1);
+                // Diagnostic: classify OOB as identity (shift=0) vs shifted
+                let shift = mapped_1based - start;
+                let expected_len = scratch.sequence.len() as i32 + mapper.total_delta();
                 eprintln!(
-                    "[PTM_FAIL] code=ISOFORM_OOB parent_id={} id={} original_index={} mapped_index={} isoform_len={}",
+                    "[PTM_FAIL] code=ISOFORM_OOB parent_id={} id={} original_index={} mapped_index={} isoform_len={} shift={} vsp_count={} expected_len={}",
                     parent_id,
                     row_id,
                     start,
                     mapped_1based,
-                    isoform_bytes.len()
+                    isoform_bytes.len(),
+                    shift,
+                    mapper.edit_count(),
+                    expected_len
                 );
                 continue;
             }
@@ -352,14 +358,18 @@ impl EntryBuilders {
             if isoform_aa != original_aa {
                 self.metrics.add_ptm_failed(1);
                 self.metrics.add_ptm_failed_residue_mismatch(1);
+                // Diagnostic: classify mismatch as identity (shift=0) vs shifted
+                let shift = mapped_1based - start;
                 eprintln!(
-                    "[PTM_FAIL] code=RESIDUE_MISMATCH parent_id={} id={} original_index={} mapped_index={} original_aa={} isoform_aa={} ",
+                    "[PTM_FAIL] code=RESIDUE_MISMATCH parent_id={} id={} original_index={} mapped_index={} original_aa={} isoform_aa={} shift={} vsp_count={}",
                     parent_id,
                     row_id,
                     start,
                     mapped_1based,
                     original_aa as char,
-                    isoform_aa as char
+                    isoform_aa as char,
+                    shift,
+                    mapper.edit_count()
                 );
                 continue;
             }

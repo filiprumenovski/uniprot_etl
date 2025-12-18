@@ -114,7 +114,11 @@ fn main() -> Result<()> {
         "[INFO]   Channel capacity: {}",
         settings.performance.channel_capacity
     );
-    log!(logger, "[INFO]   Zstd level: {}", settings.performance.zstd_level);
+    log!(
+        logger,
+        "[INFO]   Zstd level: {}",
+        settings.performance.zstd_level
+    );
 
     let metrics = Metrics::new();
 
@@ -145,11 +149,7 @@ fn main() -> Result<()> {
 
     // Attempt to save report
     if let Err(e) = report.save_yaml(&run_context.report_path()) {
-        log!(
-            logger,
-            "[ERROR] Failed to save report: {}",
-            e
-        );
+        log!(logger, "[ERROR] Failed to save report: {}", e);
     } else {
         log!(
             logger,
@@ -221,7 +221,11 @@ fn print_summary_to_tee(metrics: &Metrics, logger: &mut TeeWriter) {
     log!(logger, "Features:        {}", features);
     log!(logger, "Isoforms:        {}", isoforms);
     log!(logger, "Time elapsed:    {:.2}s", elapsed);
-    log!(logger, "Throughput:      {:.0} entries/sec", entries_per_sec);
+    log!(
+        logger,
+        "Throughput:      {:.0} entries/sec",
+        entries_per_sec
+    );
     log!(logger, "Bytes read:      {:.2} MB", mb_read);
     log!(logger, "Bytes written:   {:.2} MB", mb_written);
 }

@@ -62,13 +62,33 @@ fn handle_start_tag(
     let tag = tag_name.as_ref();
 
     Ok(match (state, tag) {
+        (State::Protein, b"proteinExistence") => {
+            if let Some(t) = get_attribute(e, b"type")? {
+                scratch.existence = map_existence(&t);
+            }
+            State::ProteinExistence
+        }
         (State::Root, b"entry") => {
             scratch.clear();
             State::Entry
         }
+        // Entry-level name
+        (State::Entry, b"name") => State::EntryName,
         (State::Entry, b"accession") => State::Accession,
         (State::Entry, b"sequence") => State::Sequence,
         (State::Entry, b"organism") => State::Organism,
+        // Organism scientific name
+        (State::Organism, b"name") => {
+            if let Some(t) = get_attribute(e, b"type")? {
+                if t == "scientific" {
+                    State::OrganismScientificName
+                } else {
+                    State::Organism
+                }
+            } else {
+                State::Organism
+            }
+        }
         (State::Organism, b"dbReference") => {
             // Look for NCBI Taxonomy reference
             if let Some(type_attr) = get_attribute(e, b"type")? {
@@ -79,6 +99,36 @@ fn handle_start_tag(
                 }
             }
             State::OrganismDbReference
+        }
+        // Gene primary name
+        (State::Entry, b"gene") => State::Gene,
+        (State::Gene, b"name") => {
+            if let Some(t) = get_attribute(e, b"type")? {
+                if t == "primary" {
+                    State::GeneName
+                } else {
+                    State::Gene
+                }
+            } else {
+                State::Gene
+            }
+        }
+        // Protein recommended full name and existence
+        (State::Entry, b"protein") => State::Protein,
+        (State::Protein, b"recommendedName") => State::RecommendedName,
+        (State::RecommendedName, b"fullName") => State::RecommendedName,
+        // Structural hooks at entry level
+        (State::Entry, b"dbReference") => {
+            if let Some(db) = get_attribute(e, b"type")? {
+                if db == "PDB" || db == "AlphaFoldDB" {
+                    if let Some(id) = get_attribute(e, b"id")? {
+                        scratch
+                            .structures
+                            .push(crate::pipeline::scratch::StructureRef { database: db, id });
+                    }
+                }
+            }
+            State::Entry
         }
         (State::Entry, b"feature") => {
             scratch.current_feature.clear();
@@ -169,6 +219,24 @@ fn handle_empty_tag(
     let tag = tag_name.as_ref();
 
     match (state, tag) {
+        // Protein existence empty tag
+        (State::Protein, b"proteinExistence") => {
+            if let Some(t) = get_attribute(e, b"type")? {
+                scratch.existence = map_existence(&t);
+            }
+        }
+        // Structural hooks can be self-closing
+        (State::Entry, b"dbReference") => {
+            if let Some(db) = get_attribute(e, b"type")? {
+                if db == "PDB" || db == "AlphaFoldDB" {
+                    if let Some(id) = get_attribute(e, b"id")? {
+                        scratch
+                            .structures
+                            .push(crate::pipeline::scratch::StructureRef { database: db, id });
+                    }
+                }
+            }
+        }
         (State::Organism, b"dbReference") => {
             if let Some(type_attr) = get_attribute(e, b"type")? {
                 if type_attr == "NCBI Taxonomy" {
@@ -223,6 +291,10 @@ fn handle_end_tag(
             batcher.add_entry(scratch)?;
             State::Root
         }
+        (State::EntryName, b"name") => {
+            scratch.entry_name = Some(std::mem::take(&mut scratch.text_buffer));
+            State::Entry
+        }
         (State::Accession, b"accession") => {
             if !scratch.has_primary_accession {
                 scratch.accession = std::mem::take(&mut scratch.text_buffer);
@@ -242,8 +314,27 @@ fn handle_end_tag(
             scratch.text_buffer.clear();
             State::Entry
         }
+        // Organism scientific name capture
+        (State::OrganismScientificName, b"name") => {
+            scratch.organism_scientific_name = Some(std::mem::take(&mut scratch.text_buffer));
+            State::Organism
+        }
         (State::OrganismDbReference, b"dbReference") => State::Organism,
         (State::Organism, b"organism") => State::Entry,
+        // Gene name capture
+        (State::GeneName, b"name") => {
+            scratch.gene_name = Some(std::mem::take(&mut scratch.text_buffer));
+            State::Gene
+        }
+        (State::Gene, b"gene") => State::Entry,
+        // Protein recommended full name capture and existence state
+        (State::RecommendedName, b"fullName") => {
+            scratch.protein_name = Some(std::mem::take(&mut scratch.text_buffer));
+            State::RecommendedName
+        }
+        (State::RecommendedName, b"recommendedName") => State::Protein,
+        (State::ProteinExistence, b"proteinExistence") => State::Protein,
+        (State::Protein, b"protein") => State::Entry,
         (State::Feature, b"feature") => {
             scratch
                 .features
@@ -300,4 +391,16 @@ fn get_attribute(e: &quick_xml::events::BytesStart<'_>, name: &[u8]) -> Result<O
 /// Parses space-separated evidence references into a Vec
 fn parse_evidence_refs(refs: &str) -> Vec<String> {
     refs.split_whitespace().map(String::from).collect()
+}
+
+/// Maps UniProt proteinExistence type strings to i8 codes
+fn map_existence(t: &str) -> i8 {
+    match t {
+        "evidence at protein level" => 1,
+        "evidence at transcript level" => 2,
+        "inferred from homology" => 3,
+        "predicted" => 4,
+        "uncertain" => 5,
+        _ => 0,
+    }
 }

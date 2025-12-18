@@ -1,0 +1,20 @@
+[INFO] Run ID: run_20251218_043643
+[INFO] Run directory: /Users/filiprumenovski/Code/UniProt_ETL/runs/run_20251218_043643
+[INFO] Config snapshot saved to /Users/filiprumenovski/Code/UniProt_ETL/runs/run_20251218_043643/config_snapshot.yaml
+[INFO] Configuration ready
+[INFO]   Input: /Users/filiprumenovski/Code/UniProt_ETL/input_path=data/raw/sample_uniprot.xml
+[INFO]   Output: /Users/filiprumenovski/Code/UniProt_ETL/data/parquet/uniprot.parquet
+[INFO]   Batch size: 10000
+[INFO]   Channel capacity: 8
+[INFO]   Zstd level: 3
+[INFO] Report saved to /Users/filiprumenovski/Code/UniProt_ETL/runs/run_20251218_043643/report.yaml
+
+=== ETL Summary ===
+Entries parsed:  0
+Batches written: 0
+Features:        0
+Isoforms:        0
+Time elapsed:    0.02s
+Throughput:      0 entries/sec
+Bytes read:      0.00 MB
+Bytes written:   0.00 MB

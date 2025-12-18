@@ -7,10 +7,22 @@ pub enum State {
     #[default]
     Root,
     Entry,
+    /// <name> directly under <entry>
+    EntryName,
     Accession,
     Sequence,
     Organism,
     OrganismDbReference,
+    /// <name type="scientific"> inside <organism>
+    OrganismScientificName,
+    /// <gene> context and primary gene name capture
+    Gene,
+    GeneName,
+    /// <protein> context and recommended name capture
+    Protein,
+    RecommendedName,
+    /// <proteinExistence> attribute mapping
+    ProteinExistence,
     Feature,
     FeatureLocation,
     FeaturePosition,
@@ -37,8 +49,12 @@ impl State {
     pub fn captures_text(&self) -> bool {
         matches!(
             self,
-            State::Accession
+            State::EntryName
+                | State::Accession
                 | State::Sequence
+                | State::GeneName
+                | State::OrganismScientificName
+                | State::RecommendedName
                 | State::CommentLocation
                 | State::CommentIsoformId
                 | State::CommentIsoformNote

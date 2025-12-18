@@ -20,6 +20,13 @@ pub fn create_uniprot_schema() -> Schema {
         Field::new("isoforms", isoforms_list_type(), true),
         Field::new("features", features_list_type(), true),
         Field::new("location", location_list_type(), true),
+        // New rich metadata columns (appended to preserve indices of existing tests)
+        Field::new("entry_name", DataType::Utf8, true),
+        Field::new("gene_name", DataType::Utf8, true),
+        Field::new("protein_name", DataType::Utf8, true),
+        Field::new("organism_name", DataType::Utf8, true),
+        Field::new("existence", DataType::Int8, true),
+        Field::new("structures", structures_list_type(), true),
     ])
 }
 
@@ -76,6 +83,22 @@ fn location_list_type() -> DataType {
     DataType::List(Arc::new(Field::new(
         "item",
         DataType::Struct(location_struct_fields()),
+        true,
+    )))
+}
+
+/// Structure struct: db, id
+fn structure_struct_fields() -> Fields {
+    Fields::from(vec![
+        Field::new("db", DataType::Utf8, false),
+        Field::new("id", DataType::Utf8, false),
+    ])
+}
+
+fn structures_list_type() -> DataType {
+    DataType::List(Arc::new(Field::new(
+        "item",
+        DataType::Struct(structure_struct_fields()),
         true,
     )))
 }

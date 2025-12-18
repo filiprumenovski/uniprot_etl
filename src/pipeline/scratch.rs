@@ -61,6 +61,20 @@ pub struct EntryScratch {
     /// NCBI Taxonomy ID
     pub organism_id: Option<i32>,
 
+    /// Entry name (<entry><name>)
+    pub entry_name: Option<String>,
+    /// Primary gene name (<gene><name type="primary">)
+    pub gene_name: Option<String>,
+    /// Recommended protein name (<protein><recommendedName><fullName>)
+    pub protein_name: Option<String>,
+    /// Organism scientific name (<organism><name type="scientific">)
+    pub organism_scientific_name: Option<String>,
+    /// Protein existence (mapped 1-5; 0 unknown)
+    pub existence: i8,
+
+    /// Structural references (e.g., PDB, AlphaFoldDB)
+    pub structures: Vec<StructureRef>,
+
     /// Entry-local evidence key -> ECO code mapping
     pub evidence_map: HashMap<String, String>,
 
@@ -96,6 +110,12 @@ impl EntryScratch {
         self.accession.clear();
         self.sequence.clear();
         self.organism_id = None;
+        self.entry_name = None;
+        self.gene_name = None;
+        self.protein_name = None;
+        self.organism_scientific_name = None;
+        self.existence = 0;
+        self.structures.clear();
         self.evidence_map.clear();
         self.features.clear();
         self.current_feature.clear();
@@ -124,4 +144,11 @@ impl EntryScratch {
             Some(codes.join(";"))
         }
     }
+}
+
+/// Reference to external structural database (PDB/AlphaFoldDB)
+#[derive(Debug, Default, Clone)]
+pub struct StructureRef {
+    pub database: String,
+    pub id: String,
 }

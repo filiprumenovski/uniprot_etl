@@ -1,5 +1,5 @@
 use arrow::array::{
-    ArrayBuilder, ArrayRef, Int32Builder, ListBuilder, StringBuilder, StructBuilder,
+    ArrayBuilder, ArrayRef, Int32Builder, Int8Builder, ListBuilder, StringBuilder, StructBuilder,
 };
 use arrow::datatypes::{DataType, Field, Fields};
 use arrow::record_batch::RecordBatch;
@@ -17,6 +17,12 @@ pub struct EntryBuilders {
     pub isoforms: ListBuilder<StructBuilder>,
     pub features: ListBuilder<StructBuilder>,
     pub locations: ListBuilder<StructBuilder>,
+    pub entry_name: StringBuilder,
+    pub gene_name: StringBuilder,
+    pub protein_name: StringBuilder,
+    pub organism_name: StringBuilder,
+    pub existence: Int8Builder,
+    pub structures: ListBuilder<StructBuilder>,
     capacity: usize,
 }
 
@@ -29,6 +35,12 @@ impl EntryBuilders {
             isoforms: Self::create_isoforms_builder(capacity),
             features: Self::create_features_builder(capacity),
             locations: Self::create_locations_builder(capacity),
+            entry_name: StringBuilder::with_capacity(capacity, capacity * 20),
+            gene_name: StringBuilder::with_capacity(capacity, capacity * 20),
+            protein_name: StringBuilder::with_capacity(capacity, capacity * 50),
+            organism_name: StringBuilder::with_capacity(capacity, capacity * 30),
+            existence: Int8Builder::with_capacity(capacity),
+            structures: Self::create_structures_builder(capacity),
             capacity,
         }
     }
@@ -67,12 +79,36 @@ impl EntryBuilders {
         ListBuilder::new(struct_builder)
     }
 
+    fn create_structures_builder(capacity: usize) -> ListBuilder<StructBuilder> {
+        let fields = Fields::from(vec![
+            Field::new("db", DataType::Utf8, false),
+            Field::new("id", DataType::Utf8, false),
+        ]);
+
+        let struct_builder = StructBuilder::from_fields(fields, capacity);
+        ListBuilder::new(struct_builder)
+    }
+
     /// Appends a parsed entry to the builders
     pub fn append_entry(&mut self, scratch: &EntryScratch) {
         // Top-level fields
         self.id.append_value(&scratch.accession);
         self.sequence.append_value(&scratch.sequence);
         self.organism_id.append_option(scratch.organism_id);
+
+        // Rich names
+        self.entry_name.append_option(scratch.entry_name.as_deref());
+        self.gene_name.append_option(scratch.gene_name.as_deref());
+        self.protein_name
+            .append_option(scratch.protein_name.as_deref());
+        self.organism_name
+            .append_option(scratch.organism_scientific_name.as_deref());
+        // Existence
+        if scratch.existence == 0 {
+            self.existence.append_null();
+        } else {
+            self.existence.append_value(scratch.existence);
+        }
 
         // Isoforms
         let isoforms_struct = self.isoforms.values();
@@ -136,6 +172,21 @@ impl EntryBuilders {
             locations_struct.append(true);
         }
         self.locations.append(true);
+
+        // Structures
+        let structures_struct = self.structures.values();
+        for s in &scratch.structures {
+            structures_struct
+                .field_builder::<StringBuilder>(0)
+                .unwrap()
+                .append_value(&s.database);
+            structures_struct
+                .field_builder::<StringBuilder>(1)
+                .unwrap()
+                .append_value(&s.id);
+            structures_struct.append(true);
+        }
+        self.structures.append(true);
     }
 
     /// Finishes the current batch and returns a RecordBatch
@@ -147,6 +198,12 @@ impl EntryBuilders {
             Arc::new(self.isoforms.finish()),
             Arc::new(self.features.finish()),
             Arc::new(self.locations.finish()),
+            Arc::new(self.entry_name.finish()),
+            Arc::new(self.gene_name.finish()),
+            Arc::new(self.protein_name.finish()),
+            Arc::new(self.organism_name.finish()),
+            Arc::new(self.existence.finish()),
+            Arc::new(self.structures.finish()),
         ];
 
         let batch = RecordBatch::try_new(schema_ref(), arrays)?;

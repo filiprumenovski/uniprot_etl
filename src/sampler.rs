@@ -126,8 +126,8 @@ impl ResourceSampler {
         channel_stats: Arc<ChannelStats>,
     ) {
         let pid = Pid::from_u32(std::process::id());
-        let refresh_kind = RefreshKind::new()
-            .with_processes(ProcessRefreshKind::new().with_cpu().with_memory());
+        let refresh_kind =
+            RefreshKind::new().with_processes(ProcessRefreshKind::new().with_cpu().with_memory());
 
         let mut sys = System::new_with_specifics(refresh_kind);
         let start = Instant::now();

@@ -201,6 +201,78 @@ fn parses_single_entry_into_record_batch() -> Result<()> {
 }
 
 #[test]
+fn captures_subunit_comment_text_into_subunits_column() -> Result<()> {
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<uniprot>
+    <entry>
+        <accession>Q9SUB</accession>
+        <sequence length="4">MTAK</sequence>
+        <comment type="subunit">
+            <text evidence="E1">Homodimer.</text>
+        </comment>
+        <comment type="alternative products">
+            <isoform>
+                <id>ISO1</id>
+                <sequence ref="Q9SUB-1"></sequence>
+            </isoform>
+        </comment>
+        <evidence key="E1" type="ECO:0000269"/>
+    </entry>
+</uniprot>
+"#;
+
+    let mut reader = Reader::from_reader(Cursor::new(xml.as_bytes()));
+    reader.config_mut().trim_text(true);
+
+    let metrics = Metrics::new();
+    let (tx, rx) = unbounded();
+
+    let mut sidecar = HashMap::new();
+    sidecar.insert("Q9SUB-1".to_string(), "MTAK".to_string());
+    parse_entries(reader, tx, &metrics, 16, Some(Arc::new(sidecar)))?;
+
+    let batches: Vec<_> = rx.iter().collect();
+    assert_eq!(batches.len(), 1);
+    let batch = &batches[0];
+    assert_eq!(batch.num_rows(), 1);
+
+    let schema = batch.schema();
+    let subunits_idx = schema
+        .fields()
+        .iter()
+        .position(|f| f.name() == "subunits")
+        .expect("subunits");
+
+    let subunits = batch
+        .column(subunits_idx)
+        .as_any()
+        .downcast_ref::<ListArray>()
+        .unwrap();
+    assert_eq!(subunits.value_length(0), 1);
+
+    let subunit_values = subunits.value(0);
+    let subunit_struct = subunit_values
+        .as_any()
+        .downcast_ref::<StructArray>()
+        .unwrap();
+    let texts = subunit_struct
+        .column(0)
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+    assert_eq!(texts.value(0), "Homodimer.");
+
+    let evidence_codes = subunit_struct
+        .column(1)
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+    assert_eq!(evidence_codes.value(0), "ECO:0000269");
+
+    Ok(())
+}
+
+#[test]
 fn parses_multiple_entries_and_handles_missing_evidence() -> Result<()> {
     let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <uniprot>

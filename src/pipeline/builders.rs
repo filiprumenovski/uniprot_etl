@@ -28,6 +28,17 @@ pub struct EntryBuilders {
     pub structures: ListBuilder<StructBuilder>,
     pub parent_id: StringBuilder,
     pub ptm_sites: ListBuilder<StructBuilder>,
+    // ====================================================================
+    // 8 New Enriched Feature ListBuilders
+    // ====================================================================
+    pub active_sites: ListBuilder<StructBuilder>,
+    pub binding_sites: ListBuilder<StructBuilder>,
+    pub metal_coordinations: ListBuilder<StructBuilder>,
+    pub mutagenesis_sites: ListBuilder<StructBuilder>,
+    pub domains: ListBuilder<StructBuilder>,
+    pub natural_variants: ListBuilder<StructBuilder>,
+    pub subunits: ListBuilder<StructBuilder>,
+    pub interactions: ListBuilder<StructBuilder>,
     capacity: usize,
     metrics: Metrics,
 }
@@ -49,6 +60,14 @@ impl EntryBuilders {
             structures: Self::create_structures_builder(capacity),
             parent_id: StringBuilder::with_capacity(capacity, capacity * 10),
             ptm_sites: Self::create_ptm_sites_builder(capacity),
+            active_sites: Self::create_coordinate_feature_builder(capacity),
+            binding_sites: Self::create_coordinate_feature_builder(capacity),
+            metal_coordinations: Self::create_metal_coordination_builder(capacity),
+            mutagenesis_sites: Self::create_coordinate_feature_builder(capacity),
+            domains: Self::create_domain_builder(capacity),
+            natural_variants: Self::create_natural_variant_builder(capacity),
+            subunits: Self::create_subunit_builder(capacity),
+            interactions: Self::create_interaction_builder(capacity),
             capacity,
             metrics,
         }
@@ -135,7 +154,93 @@ impl EntryBuilders {
         ListBuilder::new(site_struct_builder)
     }
 
-    /// Appends a single output row.
+    // ========================================================================
+    // Builder creation methods for 8 new enriched features
+    // ========================================================================
+
+    /// Generic coordinate feature builder (Active Site, Binding Site, Mutagenesis)
+    fn create_coordinate_feature_builder(capacity: usize) -> ListBuilder<StructBuilder> {
+        let fields = Fields::from(vec![
+            Field::new("id", DataType::Utf8, true),
+            Field::new("description", DataType::Utf8, true),
+            Field::new("start", DataType::Int32, true),
+            Field::new("end", DataType::Int32, true),
+            Field::new("evidence_code", DataType::Utf8, true),
+            Field::new("confidence_score", DataType::Float32, true),
+        ]);
+        let struct_builder = StructBuilder::from_fields(fields, capacity);
+        ListBuilder::new(struct_builder)
+    }
+
+    /// Metal Coordination builder (includes metal field)
+    fn create_metal_coordination_builder(capacity: usize) -> ListBuilder<StructBuilder> {
+        let fields = Fields::from(vec![
+            Field::new("id", DataType::Utf8, true),
+            Field::new("description", DataType::Utf8, true),
+            Field::new("metal", DataType::Utf8, true),
+            Field::new("start", DataType::Int32, true),
+            Field::new("end", DataType::Int32, true),
+            Field::new("evidence_code", DataType::Utf8, true),
+            Field::new("confidence_score", DataType::Float32, true),
+        ]);
+        let struct_builder = StructBuilder::from_fields(fields, capacity);
+        ListBuilder::new(struct_builder)
+    }
+
+    /// Domain builder (includes domain_name field)
+    fn create_domain_builder(capacity: usize) -> ListBuilder<StructBuilder> {
+        let fields = Fields::from(vec![
+            Field::new("id", DataType::Utf8, true),
+            Field::new("description", DataType::Utf8, true),
+            Field::new("domain_name", DataType::Utf8, true),
+            Field::new("start", DataType::Int32, true),
+            Field::new("end", DataType::Int32, true),
+            Field::new("evidence_code", DataType::Utf8, true),
+            Field::new("confidence_score", DataType::Float32, true),
+        ]);
+        let struct_builder = StructBuilder::from_fields(fields, capacity);
+        ListBuilder::new(struct_builder)
+    }
+
+    /// Natural Variant builder (includes original/variation fields)
+    fn create_natural_variant_builder(capacity: usize) -> ListBuilder<StructBuilder> {
+        let fields = Fields::from(vec![
+            Field::new("id", DataType::Utf8, true),
+            Field::new("description", DataType::Utf8, true),
+            Field::new("original", DataType::Utf8, true),
+            Field::new("variation", DataType::Utf8, true),
+            Field::new("start", DataType::Int32, true),
+            Field::new("end", DataType::Int32, true),
+            Field::new("evidence_code", DataType::Utf8, true),
+            Field::new("confidence_score", DataType::Float32, true),
+        ]);
+        let struct_builder = StructBuilder::from_fields(fields, capacity);
+        ListBuilder::new(struct_builder)
+    }
+
+    /// Subunit builder (text-based comment)
+    fn create_subunit_builder(capacity: usize) -> ListBuilder<StructBuilder> {
+        let fields = Fields::from(vec![
+            Field::new("text", DataType::Utf8, false),
+            Field::new("evidence_code", DataType::Utf8, true),
+            Field::new("confidence_score", DataType::Float32, true),
+        ]);
+        let struct_builder = StructBuilder::from_fields(fields, capacity);
+        ListBuilder::new(struct_builder)
+    }
+
+    /// Interaction builder (PPI comment)
+    fn create_interaction_builder(capacity: usize) -> ListBuilder<StructBuilder> {
+        let fields = Fields::from(vec![
+            Field::new("interactant_id_1", DataType::Utf8, true),
+            Field::new("interactant_id_2", DataType::Utf8, true),
+            Field::new("evidence_code", DataType::Utf8, true),
+            Field::new("confidence_score", DataType::Float32, true),
+        ]);
+        let struct_builder = StructBuilder::from_fields(fields, capacity);
+        ListBuilder::new(struct_builder)
+    }
+
     ///
     /// This is used for isoform "explosion": the same `scratch` metadata is replicated,
     /// while `row_id`, `row_sequence`, and `parent_id` vary per row.
@@ -247,8 +352,421 @@ impl EntryBuilders {
         // Parent anchor
         self.parent_id.append_value(parent_id);
 
+        // ====================================================================
+        // 8 New Enriched Features with Coordinate Mapping
+        // ====================================================================
+
+        // Active Sites
+        self.append_active_sites(scratch, row_sequence, mapper);
+
+        // Binding Sites
+        self.append_binding_sites(scratch, row_sequence, mapper);
+
+        // Mutagenesis Sites
+        self.append_mutagenesis_sites(scratch, row_sequence, mapper);
+
+        // Metal Coordinations
+        self.append_metal_coordinations(scratch, row_sequence, mapper);
+
+        // Domains
+        self.append_domains(scratch, row_sequence, mapper);
+
+        // Natural Variants
+        self.append_natural_variants(scratch, row_sequence, mapper);
+
+        // Subunits (text-based, no coordinate mapping)
+        self.append_subunits(scratch);
+
+        // Interactions (text-based, no coordinate mapping)
+        self.append_interactions(scratch);
+
         // PTM sites (residue-centric)
         self.append_ptm_sites(scratch, row_id, parent_id, row_sequence, mapper);
+    }
+
+    fn map_range_1based(
+        scratch: &EntryScratch,
+        isoform_sequence: &str,
+        mapper: &CoordinateMapper,
+        start: i32,
+        end: i32,
+    ) -> Option<(i32, i32)> {
+        if start <= 0 || end <= 0 || end < start {
+            return None;
+        }
+
+        let canonical_len = scratch.sequence.len() as i32;
+        if canonical_len <= 0 || end > canonical_len {
+            return None;
+        }
+
+        let iso_len = isoform_sequence.len() as i32;
+        if iso_len <= 0 {
+            return None;
+        }
+
+        let mapped_start = mapper.map_point_1based(start).ok()?;
+        let mapped_end = if end == start {
+            mapped_start
+        } else {
+            mapper.map_point_1based(end).ok()?
+        };
+
+        if mapped_start <= 0 || mapped_end <= 0 {
+            return None;
+        }
+        if mapped_start > iso_len || mapped_end > iso_len {
+            return None;
+        }
+        if mapped_end < mapped_start {
+            return None;
+        }
+
+        Some((mapped_start, mapped_end))
+    }
+
+    fn append_active_sites(&mut self, scratch: &EntryScratch, isoform_sequence: &str, mapper: &CoordinateMapper) {
+        let list_struct = self.active_sites.values();
+        for feat in &scratch.active_sites {
+            let (Some(start), Some(end)) = (feat.start, feat.end) else {
+                continue;
+            };
+            let Some((mapped_start, mapped_end)) =
+                Self::map_range_1based(scratch, isoform_sequence, mapper, start, end)
+            else {
+                continue;
+            };
+
+            let evidence_code = scratch.resolve_evidence(&feat.evidence_keys);
+            let confidence = scratch.max_confidence_for_evidence(&feat.evidence_keys);
+
+            list_struct
+                .field_builder::<StringBuilder>(0)
+                .unwrap()
+                .append_option(feat.id.as_deref());
+            list_struct
+                .field_builder::<StringBuilder>(1)
+                .unwrap()
+                .append_option(feat.description.as_deref());
+            list_struct
+                .field_builder::<Int32Builder>(2)
+                .unwrap()
+                .append_value(mapped_start);
+            list_struct
+                .field_builder::<Int32Builder>(3)
+                .unwrap()
+                .append_value(mapped_end);
+            list_struct
+                .field_builder::<StringBuilder>(4)
+                .unwrap()
+                .append_option(evidence_code.as_deref());
+            list_struct
+                .field_builder::<Float32Builder>(5)
+                .unwrap()
+                .append_value(confidence);
+            list_struct.append(true);
+        }
+        self.active_sites.append(true);
+    }
+
+    fn append_binding_sites(&mut self, scratch: &EntryScratch, isoform_sequence: &str, mapper: &CoordinateMapper) {
+        let list_struct = self.binding_sites.values();
+        for feat in &scratch.binding_sites {
+            let (Some(start), Some(end)) = (feat.start, feat.end) else {
+                continue;
+            };
+            let Some((mapped_start, mapped_end)) =
+                Self::map_range_1based(scratch, isoform_sequence, mapper, start, end)
+            else {
+                continue;
+            };
+
+            let evidence_code = scratch.resolve_evidence(&feat.evidence_keys);
+            let confidence = scratch.max_confidence_for_evidence(&feat.evidence_keys);
+
+            list_struct
+                .field_builder::<StringBuilder>(0)
+                .unwrap()
+                .append_option(feat.id.as_deref());
+            list_struct
+                .field_builder::<StringBuilder>(1)
+                .unwrap()
+                .append_option(feat.description.as_deref());
+            list_struct
+                .field_builder::<Int32Builder>(2)
+                .unwrap()
+                .append_value(mapped_start);
+            list_struct
+                .field_builder::<Int32Builder>(3)
+                .unwrap()
+                .append_value(mapped_end);
+            list_struct
+                .field_builder::<StringBuilder>(4)
+                .unwrap()
+                .append_option(evidence_code.as_deref());
+            list_struct
+                .field_builder::<Float32Builder>(5)
+                .unwrap()
+                .append_value(confidence);
+            list_struct.append(true);
+        }
+        self.binding_sites.append(true);
+    }
+
+    fn append_mutagenesis_sites(
+        &mut self,
+        scratch: &EntryScratch,
+        isoform_sequence: &str,
+        mapper: &CoordinateMapper,
+    ) {
+        let list_struct = self.mutagenesis_sites.values();
+        for feat in &scratch.mutagenesis_sites {
+            let (Some(start), Some(end)) = (feat.start, feat.end) else {
+                continue;
+            };
+            let Some((mapped_start, mapped_end)) =
+                Self::map_range_1based(scratch, isoform_sequence, mapper, start, end)
+            else {
+                continue;
+            };
+
+            let evidence_code = scratch.resolve_evidence(&feat.evidence_keys);
+            let confidence = scratch.max_confidence_for_evidence(&feat.evidence_keys);
+
+            list_struct
+                .field_builder::<StringBuilder>(0)
+                .unwrap()
+                .append_option(feat.id.as_deref());
+            list_struct
+                .field_builder::<StringBuilder>(1)
+                .unwrap()
+                .append_option(feat.description.as_deref());
+            list_struct
+                .field_builder::<Int32Builder>(2)
+                .unwrap()
+                .append_value(mapped_start);
+            list_struct
+                .field_builder::<Int32Builder>(3)
+                .unwrap()
+                .append_value(mapped_end);
+            list_struct
+                .field_builder::<StringBuilder>(4)
+                .unwrap()
+                .append_option(evidence_code.as_deref());
+            list_struct
+                .field_builder::<Float32Builder>(5)
+                .unwrap()
+                .append_value(confidence);
+            list_struct.append(true);
+        }
+        self.mutagenesis_sites.append(true);
+    }
+
+    fn append_metal_coordinations(
+        &mut self,
+        scratch: &EntryScratch,
+        isoform_sequence: &str,
+        mapper: &CoordinateMapper,
+    ) {
+        let list_struct = self.metal_coordinations.values();
+        for feat in &scratch.metal_coordinations {
+            let (Some(start), Some(end)) = (feat.start, feat.end) else {
+                continue;
+            };
+            let Some((mapped_start, mapped_end)) =
+                Self::map_range_1based(scratch, isoform_sequence, mapper, start, end)
+            else {
+                continue;
+            };
+
+            let evidence_code = scratch.resolve_evidence(&feat.evidence_keys);
+            let confidence = scratch.max_confidence_for_evidence(&feat.evidence_keys);
+
+            list_struct
+                .field_builder::<StringBuilder>(0)
+                .unwrap()
+                .append_option(feat.id.as_deref());
+            list_struct
+                .field_builder::<StringBuilder>(1)
+                .unwrap()
+                .append_option(feat.description.as_deref());
+            list_struct
+                .field_builder::<StringBuilder>(2)
+                .unwrap()
+                .append_option(feat.metal.as_deref());
+            list_struct
+                .field_builder::<Int32Builder>(3)
+                .unwrap()
+                .append_value(mapped_start);
+            list_struct
+                .field_builder::<Int32Builder>(4)
+                .unwrap()
+                .append_value(mapped_end);
+            list_struct
+                .field_builder::<StringBuilder>(5)
+                .unwrap()
+                .append_option(evidence_code.as_deref());
+            list_struct
+                .field_builder::<Float32Builder>(6)
+                .unwrap()
+                .append_value(confidence);
+            list_struct.append(true);
+        }
+        self.metal_coordinations.append(true);
+    }
+
+    fn append_domains(&mut self, scratch: &EntryScratch, isoform_sequence: &str, mapper: &CoordinateMapper) {
+        let list_struct = self.domains.values();
+        for feat in &scratch.domains {
+            let (Some(start), Some(end)) = (feat.start, feat.end) else {
+                continue;
+            };
+            let Some((mapped_start, mapped_end)) =
+                Self::map_range_1based(scratch, isoform_sequence, mapper, start, end)
+            else {
+                continue;
+            };
+
+            let evidence_code = scratch.resolve_evidence(&feat.evidence_keys);
+            let confidence = scratch.max_confidence_for_evidence(&feat.evidence_keys);
+            let domain_name = feat.domain_name.as_deref().or(feat.description.as_deref());
+
+            list_struct
+                .field_builder::<StringBuilder>(0)
+                .unwrap()
+                .append_option(feat.id.as_deref());
+            list_struct
+                .field_builder::<StringBuilder>(1)
+                .unwrap()
+                .append_option(feat.description.as_deref());
+            list_struct
+                .field_builder::<StringBuilder>(2)
+                .unwrap()
+                .append_option(domain_name);
+            list_struct
+                .field_builder::<Int32Builder>(3)
+                .unwrap()
+                .append_value(mapped_start);
+            list_struct
+                .field_builder::<Int32Builder>(4)
+                .unwrap()
+                .append_value(mapped_end);
+            list_struct
+                .field_builder::<StringBuilder>(5)
+                .unwrap()
+                .append_option(evidence_code.as_deref());
+            list_struct
+                .field_builder::<Float32Builder>(6)
+                .unwrap()
+                .append_value(confidence);
+            list_struct.append(true);
+        }
+        self.domains.append(true);
+    }
+
+    fn append_natural_variants(
+        &mut self,
+        scratch: &EntryScratch,
+        isoform_sequence: &str,
+        mapper: &CoordinateMapper,
+    ) {
+        let list_struct = self.natural_variants.values();
+        for feat in &scratch.natural_variants {
+            let (Some(start), Some(end)) = (feat.start, feat.end) else {
+                continue;
+            };
+            let Some((mapped_start, mapped_end)) =
+                Self::map_range_1based(scratch, isoform_sequence, mapper, start, end)
+            else {
+                continue;
+            };
+
+            let evidence_code = scratch.resolve_evidence(&feat.evidence_keys);
+            let confidence = scratch.max_confidence_for_evidence(&feat.evidence_keys);
+
+            list_struct
+                .field_builder::<StringBuilder>(0)
+                .unwrap()
+                .append_option(feat.id.as_deref());
+            list_struct
+                .field_builder::<StringBuilder>(1)
+                .unwrap()
+                .append_option(feat.description.as_deref());
+            list_struct
+                .field_builder::<StringBuilder>(2)
+                .unwrap()
+                .append_option(feat.original.as_deref());
+            list_struct
+                .field_builder::<StringBuilder>(3)
+                .unwrap()
+                .append_option(feat.variation.as_deref());
+            list_struct
+                .field_builder::<Int32Builder>(4)
+                .unwrap()
+                .append_value(mapped_start);
+            list_struct
+                .field_builder::<Int32Builder>(5)
+                .unwrap()
+                .append_value(mapped_end);
+            list_struct
+                .field_builder::<StringBuilder>(6)
+                .unwrap()
+                .append_option(evidence_code.as_deref());
+            list_struct
+                .field_builder::<Float32Builder>(7)
+                .unwrap()
+                .append_value(confidence);
+            list_struct.append(true);
+        }
+        self.natural_variants.append(true);
+    }
+
+    fn append_subunits(&mut self, scratch: &EntryScratch) {
+        let list_struct = self.subunits.values();
+        for sub in &scratch.subunits {
+            let evidence_code = scratch.resolve_evidence(&sub.evidence_keys);
+            let confidence = scratch.max_confidence_for_evidence(&sub.evidence_keys);
+            list_struct
+                .field_builder::<StringBuilder>(0)
+                .unwrap()
+                .append_value(sub.text.trim());
+            list_struct
+                .field_builder::<StringBuilder>(1)
+                .unwrap()
+                .append_option(evidence_code.as_deref());
+            list_struct
+                .field_builder::<Float32Builder>(2)
+                .unwrap()
+                .append_value(confidence);
+            list_struct.append(true);
+        }
+        self.subunits.append(true);
+    }
+
+    fn append_interactions(&mut self, scratch: &EntryScratch) {
+        let list_struct = self.interactions.values();
+        for inter in &scratch.interactions {
+            let evidence_code = scratch.resolve_evidence(&inter.evidence_keys);
+            let confidence = scratch.max_confidence_for_evidence(&inter.evidence_keys);
+            list_struct
+                .field_builder::<StringBuilder>(0)
+                .unwrap()
+                .append_option(inter.interactant_id_1.as_deref());
+            list_struct
+                .field_builder::<StringBuilder>(1)
+                .unwrap()
+                .append_option(inter.interactant_id_2.as_deref());
+            list_struct
+                .field_builder::<StringBuilder>(2)
+                .unwrap()
+                .append_option(evidence_code.as_deref());
+            list_struct
+                .field_builder::<Float32Builder>(3)
+                .unwrap()
+                .append_value(confidence);
+            list_struct.append(true);
+        }
+        self.interactions.append(true);
     }
 
     fn append_ptm_sites(
@@ -435,6 +953,14 @@ impl EntryBuilders {
             Arc::new(self.structures.finish()),
             Arc::new(self.parent_id.finish()),
             Arc::new(self.ptm_sites.finish()),
+            Arc::new(self.active_sites.finish()),
+            Arc::new(self.binding_sites.finish()),
+            Arc::new(self.metal_coordinations.finish()),
+            Arc::new(self.mutagenesis_sites.finish()),
+            Arc::new(self.domains.finish()),
+            Arc::new(self.natural_variants.finish()),
+            Arc::new(self.subunits.finish()),
+            Arc::new(self.interactions.finish()),
         ];
 
         let batch = RecordBatch::try_new(schema_ref(), arrays)?;

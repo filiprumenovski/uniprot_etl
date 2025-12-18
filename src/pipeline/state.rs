@@ -38,6 +38,33 @@ pub enum State {
     CommentIsoformSequence,
     CommentIsoformNote,
     Evidence,
+    // ============================================================================
+    // Category A: Coordinate-Based Features (5 types)
+    // ============================================================================
+    /// <feature type="active site">
+    FeatureActiveSite,
+    /// <feature type="binding site">
+    FeatureBindingSite,
+    /// <feature type="metal ion-binding site">
+    FeatureMetalCoordination,
+    /// <feature type="mutagenesis site">
+    FeatureMutagenesis,
+    /// <feature type="domain">
+    FeatureDomain,
+    // ============================================================================
+    // Category B: Sequence Variant (Natural Variants - also coordinate-based)
+    // ============================================================================
+    /// <feature type="sequence variant"> (distinct from FeatureVariation state)
+    FeatureNaturalVariant,
+    // ============================================================================
+    // Category B: Text-Based Comment Features (2 types)
+    // ============================================================================
+    /// <comment type="subunit">
+    CommentSubunit,
+    /// <comment type="subunit"><text>...</text>
+    CommentSubunitText,
+    /// <comment type="interaction">
+    CommentInteraction,
 }
 
 impl State {
@@ -62,6 +89,7 @@ impl State {
                 | State::CommentIsoformNote
                 | State::FeatureOriginal
                 | State::FeatureVariation
+                | State::CommentSubunitText
         )
     }
 }

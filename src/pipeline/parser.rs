@@ -139,7 +139,83 @@ fn handle_start_tag(
                 scratch.current_feature.id = Some(id);
             }
             if let Some(ft) = get_attribute(e, b"type")? {
-                scratch.current_feature.feature_type = ft;
+                scratch.current_feature.feature_type = ft.clone();
+                // Keep legacy generic feature capture for all types, even the ones
+                // that are also extracted into dedicated enriched columns.
+                if let Some(desc) = get_attribute(e, b"description")? {
+                    scratch.current_feature.description = Some(desc);
+                }
+                if let Some(ev) = get_attribute(e, b"evidence")? {
+                    scratch.current_feature.evidence_keys = parse_evidence_refs(&ev);
+                }
+                // Route to specialized feature states for new category A & B features
+                return Ok(match ft.as_str() {
+                    "active site" => {
+                        scratch.current_active_site.clear();
+                        scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::ActiveSite;
+                        if let Some(id) = get_attribute(e, b"id")? {
+                            scratch.current_active_site.id = Some(id);
+                        }
+                        scratch.current_active_site.description = scratch.current_feature.description.clone();
+                        scratch.current_active_site.evidence_keys = scratch.current_feature.evidence_keys.clone();
+                        State::FeatureActiveSite
+                    }
+                    "binding site" => {
+                        scratch.current_binding_site.clear();
+                        scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::BindingSite;
+                        if let Some(id) = get_attribute(e, b"id")? {
+                            scratch.current_binding_site.id = Some(id);
+                        }
+                        scratch.current_binding_site.description = scratch.current_feature.description.clone();
+                        scratch.current_binding_site.evidence_keys = scratch.current_feature.evidence_keys.clone();
+                        State::FeatureBindingSite
+                    }
+                    "metal ion-binding site" => {
+                        scratch.current_metal_coordination.clear();
+                        scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::MetalCoordination;
+                        if let Some(id) = get_attribute(e, b"id")? {
+                            scratch.current_metal_coordination.id = Some(id);
+                        }
+                        scratch.current_metal_coordination.description = scratch.current_feature.description.clone();
+                        scratch.current_metal_coordination.evidence_keys = scratch.current_feature.evidence_keys.clone();
+                        State::FeatureMetalCoordination
+                    }
+                    "mutagenesis site" => {
+                        scratch.current_mutagenesis_site.clear();
+                        scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::Mutagenesis;
+                        if let Some(id) = get_attribute(e, b"id")? {
+                            scratch.current_mutagenesis_site.id = Some(id);
+                        }
+                        scratch.current_mutagenesis_site.description = scratch.current_feature.description.clone();
+                        scratch.current_mutagenesis_site.evidence_keys = scratch.current_feature.evidence_keys.clone();
+                        State::FeatureMutagenesis
+                    }
+                    "domain" => {
+                        scratch.current_domain.clear();
+                        scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::Domain;
+                        if let Some(id) = get_attribute(e, b"id")? {
+                            scratch.current_domain.id = Some(id);
+                        }
+                        scratch.current_domain.description = scratch.current_feature.description.clone();
+                        scratch.current_domain.evidence_keys = scratch.current_feature.evidence_keys.clone();
+                        State::FeatureDomain
+                    }
+                    "sequence variant" => {
+                        scratch.current_natural_variant.clear();
+                        scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::NaturalVariant;
+                        if let Some(id) = get_attribute(e, b"id")? {
+                            scratch.current_natural_variant.id = Some(id);
+                        }
+                        scratch.current_natural_variant.description = scratch.current_feature.description.clone();
+                        scratch.current_natural_variant.evidence_keys = scratch.current_feature.evidence_keys.clone();
+                        State::FeatureNaturalVariant
+                    }
+                    _ => {
+                        // Generic feature handling for other types
+                        scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::Generic;
+                        State::Feature
+                    }
+                });
             }
             if let Some(desc) = get_attribute(e, b"description")? {
                 scratch.current_feature.description = Some(desc);
@@ -157,25 +233,44 @@ fn handle_start_tag(
             scratch.text_buffer.clear();
             State::FeatureVariation
         }
+        // Natural variants also have <original>/<variation> but must populate current_natural_variant
+        (State::FeatureNaturalVariant, b"original") => {
+            scratch.text_buffer.clear();
+            State::FeatureOriginal
+        }
+        (State::FeatureNaturalVariant, b"variation") => {
+            scratch.text_buffer.clear();
+            State::FeatureVariation
+        }
         (State::Feature, b"location") => State::FeatureLocation,
+        // Location handling for new coordinate-based features
+        (State::FeatureActiveSite, b"location") => State::FeatureLocation,
+        (State::FeatureBindingSite, b"location") => State::FeatureLocation,
+        (State::FeatureMetalCoordination, b"location") => State::FeatureLocation,
+        (State::FeatureMutagenesis, b"location") => State::FeatureLocation,
+        (State::FeatureDomain, b"location") => State::FeatureLocation,
+        (State::FeatureNaturalVariant, b"location") => State::FeatureLocation,
         (State::FeatureLocation, b"position") => {
             if let Some(pos) = get_attribute(e, b"position")? {
                 if let Ok(p) = pos.parse() {
-                    scratch.current_feature.start = Some(p);
-                    scratch.current_feature.end = Some(p);
+                    apply_coordinate_to_feature(p, CoordinateType::Position, scratch.current_feature_context, scratch);
                 }
             }
             State::FeaturePosition
         }
         (State::FeatureLocation, b"begin") => {
             if let Some(pos) = get_attribute(e, b"position")? {
-                scratch.current_feature.start = pos.parse().ok();
+                if let Ok(p) = pos.parse() {
+                    apply_coordinate_to_feature(p, CoordinateType::Begin, scratch.current_feature_context, scratch);
+                }
             }
             State::FeatureBegin
         }
         (State::FeatureLocation, b"end") => {
             if let Some(pos) = get_attribute(e, b"position")? {
-                scratch.current_feature.end = pos.parse().ok();
+                if let Ok(p) = pos.parse() {
+                    apply_coordinate_to_feature(p, CoordinateType::End, scratch.current_feature_context, scratch);
+                }
             }
             State::FeatureEnd
         }
@@ -184,6 +279,20 @@ fn handle_start_tag(
                 match ct.as_str() {
                     "subcellular location" => State::CommentSubcellularLocation,
                     "alternative products" => State::CommentIsoform,
+                    "subunit" => {
+                        scratch.current_subunit.clear();
+                        if let Some(ev) = get_attribute(e, b"evidence")? {
+                            scratch.current_subunit.evidence_keys = parse_evidence_refs(&ev);
+                        }
+                        State::CommentSubunit
+                    }
+                    "interaction" => {
+                        scratch.current_interaction.clear();
+                        if let Some(ev) = get_attribute(e, b"evidence")? {
+                            scratch.current_interaction.evidence_keys = parse_evidence_refs(&ev);
+                        }
+                        State::CommentInteraction
+                    }
                     _ => State::Comment,
                 }
             } else {
@@ -199,6 +308,39 @@ fn handle_start_tag(
                 scratch.current_location.evidence_keys = parse_evidence_refs(&ev);
             }
             State::CommentLocation
+        }
+        // Subunit comment captures inner <text>
+        (State::CommentSubunit, b"text") => {
+            scratch.text_buffer.clear();
+            // Prefer evidence on <text> if present; otherwise keep comment-level evidence
+            if let Some(ev) = get_attribute(e, b"evidence")? {
+                scratch.current_subunit.evidence_keys = parse_evidence_refs(&ev);
+            }
+            State::CommentSubunitText
+        }
+        // Interaction comment often contains <dbReference type="UniProtKB" id="..."/> under interactants
+        (State::CommentInteraction, b"dbReference") => {
+            if let Some(t) = get_attribute(e, b"type")? {
+                if t.starts_with("UniProtKB") {
+                    if let Some(id) = get_attribute(e, b"id")? {
+                        if scratch.current_interaction.interactant_id_1.is_none() {
+                            scratch.current_interaction.interactant_id_1 = Some(id);
+                        } else if scratch.current_interaction.interactant_id_2.is_none() {
+                            scratch.current_interaction.interactant_id_2 = Some(id);
+                        } else {
+                            // If more than 2 interactants appear, flush current pair and start a new one
+                            let keep_ev = scratch.current_interaction.evidence_keys.clone();
+                            scratch
+                                .interactions
+                                .push(std::mem::take(&mut scratch.current_interaction));
+                            scratch.current_interaction.clear();
+                            scratch.current_interaction.evidence_keys = keep_ev;
+                            scratch.current_interaction.interactant_id_1 = Some(id);
+                        }
+                    }
+                }
+            }
+            State::CommentInteraction
         }
         (State::CommentIsoform, b"isoform") => {
             scratch.current_isoform.clear();
@@ -272,19 +414,22 @@ fn handle_empty_tag(
         (State::FeatureLocation, b"position") => {
             if let Some(pos) = get_attribute(e, b"position")? {
                 if let Ok(p) = pos.parse() {
-                    scratch.current_feature.start = Some(p);
-                    scratch.current_feature.end = Some(p);
+                    apply_coordinate_to_feature(p, CoordinateType::Position, scratch.current_feature_context, scratch);
                 }
             }
         }
         (State::FeatureLocation, b"begin") => {
             if let Some(pos) = get_attribute(e, b"position")? {
-                scratch.current_feature.start = pos.parse().ok();
+                if let Ok(p) = pos.parse() {
+                    apply_coordinate_to_feature(p, CoordinateType::Begin, scratch.current_feature_context, scratch);
+                }
             }
         }
         (State::FeatureLocation, b"end") => {
             if let Some(pos) = get_attribute(e, b"position")? {
-                scratch.current_feature.end = pos.parse().ok();
+                if let Ok(p) = pos.parse() {
+                    apply_coordinate_to_feature(p, CoordinateType::End, scratch.current_feature_context, scratch);
+                }
             }
         }
         // UniProt isoform <sequence .../> tags in alternative-products comments are commonly
@@ -315,6 +460,28 @@ fn handle_empty_tag(
             if let Some(key) = get_attribute(e, b"key")? {
                 if let Some(eco) = get_attribute(e, b"type")? {
                     scratch.evidence_map.insert(key, eco);
+                }
+            }
+        }
+        // Capture interaction partners from self-closing dbReference tags
+        (State::CommentInteraction, b"dbReference") => {
+            if let Some(t) = get_attribute(e, b"type")? {
+                if t.starts_with("UniProtKB") {
+                    if let Some(id) = get_attribute(e, b"id")? {
+                        if scratch.current_interaction.interactant_id_1.is_none() {
+                            scratch.current_interaction.interactant_id_1 = Some(id);
+                        } else if scratch.current_interaction.interactant_id_2.is_none() {
+                            scratch.current_interaction.interactant_id_2 = Some(id);
+                        } else {
+                            let keep_ev = scratch.current_interaction.evidence_keys.clone();
+                            scratch
+                                .interactions
+                                .push(std::mem::take(&mut scratch.current_interaction));
+                            scratch.current_interaction.clear();
+                            scratch.current_interaction.evidence_keys = keep_ev;
+                            scratch.current_interaction.interactant_id_1 = Some(id);
+                        }
+                    }
                 }
             }
         }
@@ -391,17 +558,121 @@ fn handle_end_tag(
             State::Entry
         }
         (State::FeatureOriginal, b"original") => {
-            scratch.current_feature.original = Some(std::mem::take(&mut scratch.text_buffer));
-            State::Feature
+            if scratch.current_feature_context == crate::pipeline::scratch::FeatureContext::NaturalVariant {
+                scratch.current_natural_variant.original = Some(std::mem::take(&mut scratch.text_buffer));
+                State::FeatureNaturalVariant
+            } else {
+                scratch.current_feature.original = Some(std::mem::take(&mut scratch.text_buffer));
+                State::Feature
+            }
         }
         (State::FeatureVariation, b"variation") => {
-            scratch.current_feature.variation = Some(std::mem::take(&mut scratch.text_buffer));
-            State::Feature
+            if scratch.current_feature_context == crate::pipeline::scratch::FeatureContext::NaturalVariant {
+                scratch.current_natural_variant.variation = Some(std::mem::take(&mut scratch.text_buffer));
+                State::FeatureNaturalVariant
+            } else {
+                scratch.current_feature.variation = Some(std::mem::take(&mut scratch.text_buffer));
+                State::Feature
+            }
         }
         (State::FeaturePosition, b"position") => State::FeatureLocation,
         (State::FeatureBegin, b"begin") => State::FeatureLocation,
         (State::FeatureEnd, b"end") => State::FeatureLocation,
-        (State::FeatureLocation, b"location") => State::Feature,
+        // Finalize coordinate-based features and reset context
+        (State::FeatureActiveSite, b"feature") => {
+            scratch
+                .active_sites
+                .push(std::mem::take(&mut scratch.current_active_site));
+            scratch
+                .features
+                .push(std::mem::take(&mut scratch.current_feature));
+            scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::Generic;
+            State::Entry
+        }
+        (State::FeatureBindingSite, b"feature") => {
+            scratch
+                .binding_sites
+                .push(std::mem::take(&mut scratch.current_binding_site));
+            scratch
+                .features
+                .push(std::mem::take(&mut scratch.current_feature));
+            scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::Generic;
+            State::Entry
+        }
+        (State::FeatureMetalCoordination, b"feature") => {
+            scratch
+                .metal_coordinations
+                .push(std::mem::take(&mut scratch.current_metal_coordination));
+            scratch
+                .features
+                .push(std::mem::take(&mut scratch.current_feature));
+            scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::Generic;
+            State::Entry
+        }
+        (State::FeatureMutagenesis, b"feature") => {
+            scratch
+                .mutagenesis_sites
+                .push(std::mem::take(&mut scratch.current_mutagenesis_site));
+            scratch
+                .features
+                .push(std::mem::take(&mut scratch.current_feature));
+            scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::Generic;
+            State::Entry
+        }
+        (State::FeatureDomain, b"feature") => {
+            scratch
+                .domains
+                .push(std::mem::take(&mut scratch.current_domain));
+            scratch
+                .features
+                .push(std::mem::take(&mut scratch.current_feature));
+            scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::Generic;
+            State::Entry
+        }
+        (State::FeatureNaturalVariant, b"feature") => {
+            scratch
+                .natural_variants
+                .push(std::mem::take(&mut scratch.current_natural_variant));
+            scratch
+                .features
+                .push(std::mem::take(&mut scratch.current_feature));
+            scratch.current_feature_context = crate::pipeline::scratch::FeatureContext::Generic;
+            State::Entry
+        }
+        (State::FeatureLocation, b"location") => {
+            match scratch.current_feature_context {
+                crate::pipeline::scratch::FeatureContext::ActiveSite => State::FeatureActiveSite,
+                crate::pipeline::scratch::FeatureContext::BindingSite => State::FeatureBindingSite,
+                crate::pipeline::scratch::FeatureContext::MetalCoordination => State::FeatureMetalCoordination,
+                crate::pipeline::scratch::FeatureContext::Mutagenesis => State::FeatureMutagenesis,
+                crate::pipeline::scratch::FeatureContext::Domain => State::FeatureDomain,
+                crate::pipeline::scratch::FeatureContext::NaturalVariant => State::FeatureNaturalVariant,
+                crate::pipeline::scratch::FeatureContext::Generic => State::Feature,
+            }
+        }
+        // Finalize comment-based features
+        (State::CommentSubunitText, b"text") => {
+            scratch.current_subunit.text = std::mem::take(&mut scratch.text_buffer);
+            State::CommentSubunit
+        }
+        (State::CommentSubunit, b"comment") => {
+            if !scratch.current_subunit.text.trim().is_empty() {
+                scratch
+                    .subunits
+                    .push(std::mem::take(&mut scratch.current_subunit));
+            }
+            State::Entry
+        }
+        (State::CommentInteraction, b"comment") => {
+            if scratch.current_interaction.interactant_id_1.is_some()
+                || scratch.current_interaction.interactant_id_2.is_some()
+            {
+                scratch
+                    .interactions
+                    .push(std::mem::take(&mut scratch.current_interaction));
+            }
+            State::Entry
+        }
         (State::CommentLocation, b"location") => {
             scratch.current_location.location = std::mem::take(&mut scratch.text_buffer);
             State::CommentSubcellularLocation
@@ -433,6 +704,144 @@ fn handle_end_tag(
         (State::Evidence, b"evidence") => State::Entry,
         _ => state,
     })
+}
+
+/// Applies position coordinate to the appropriate feature buffer based on feature context
+fn apply_coordinate_to_feature(
+    pos: i32,
+    coord_type: CoordinateType,
+    context: crate::pipeline::scratch::FeatureContext,
+    scratch: &mut EntryScratch,
+) {
+    let apply_to_generic = |scratch: &mut EntryScratch| {
+        match coord_type {
+            CoordinateType::Position => {
+                scratch.current_feature.start = Some(pos);
+                scratch.current_feature.end = Some(pos);
+            }
+            CoordinateType::Begin => {
+                scratch.current_feature.start = Some(pos);
+            }
+            CoordinateType::End => {
+                scratch.current_feature.end = Some(pos);
+            }
+        }
+    };
+
+    match context {
+        crate::pipeline::scratch::FeatureContext::ActiveSite => {
+            apply_to_generic(scratch);
+            match coord_type {
+            CoordinateType::Position => {
+                scratch.current_active_site.start = Some(pos);
+                scratch.current_active_site.end = Some(pos);
+            }
+            CoordinateType::Begin => {
+                scratch.current_active_site.start = Some(pos);
+            }
+            CoordinateType::End => {
+                scratch.current_active_site.end = Some(pos);
+            }
+            }
+        }
+        crate::pipeline::scratch::FeatureContext::BindingSite => {
+            apply_to_generic(scratch);
+            match coord_type {
+            CoordinateType::Position => {
+                scratch.current_binding_site.start = Some(pos);
+                scratch.current_binding_site.end = Some(pos);
+            }
+            CoordinateType::Begin => {
+                scratch.current_binding_site.start = Some(pos);
+            }
+            CoordinateType::End => {
+                scratch.current_binding_site.end = Some(pos);
+            }
+            }
+        }
+        crate::pipeline::scratch::FeatureContext::MetalCoordination => {
+            apply_to_generic(scratch);
+            match coord_type {
+            CoordinateType::Position => {
+                scratch.current_metal_coordination.start = Some(pos);
+                scratch.current_metal_coordination.end = Some(pos);
+            }
+            CoordinateType::Begin => {
+                scratch.current_metal_coordination.start = Some(pos);
+            }
+            CoordinateType::End => {
+                scratch.current_metal_coordination.end = Some(pos);
+            }
+            }
+        }
+        crate::pipeline::scratch::FeatureContext::Mutagenesis => {
+            apply_to_generic(scratch);
+            match coord_type {
+            CoordinateType::Position => {
+                scratch.current_mutagenesis_site.start = Some(pos);
+                scratch.current_mutagenesis_site.end = Some(pos);
+            }
+            CoordinateType::Begin => {
+                scratch.current_mutagenesis_site.start = Some(pos);
+            }
+            CoordinateType::End => {
+                scratch.current_mutagenesis_site.end = Some(pos);
+            }
+            }
+        }
+        crate::pipeline::scratch::FeatureContext::Domain => {
+            apply_to_generic(scratch);
+            match coord_type {
+            CoordinateType::Position => {
+                scratch.current_domain.start = Some(pos);
+                scratch.current_domain.end = Some(pos);
+            }
+            CoordinateType::Begin => {
+                scratch.current_domain.start = Some(pos);
+            }
+            CoordinateType::End => {
+                scratch.current_domain.end = Some(pos);
+            }
+            }
+        }
+        crate::pipeline::scratch::FeatureContext::NaturalVariant => {
+            apply_to_generic(scratch);
+            match coord_type {
+            CoordinateType::Position => {
+                scratch.current_natural_variant.start = Some(pos);
+                scratch.current_natural_variant.end = Some(pos);
+            }
+            CoordinateType::Begin => {
+                scratch.current_natural_variant.start = Some(pos);
+            }
+            CoordinateType::End => {
+                scratch.current_natural_variant.end = Some(pos);
+            }
+            }
+        }
+        crate::pipeline::scratch::FeatureContext::Generic => {
+            // Fall back to generic feature scratch for non-specialized types
+            match coord_type {
+                CoordinateType::Position => {
+                    scratch.current_feature.start = Some(pos);
+                    scratch.current_feature.end = Some(pos);
+                }
+                CoordinateType::Begin => {
+                    scratch.current_feature.start = Some(pos);
+                }
+                CoordinateType::End => {
+                    scratch.current_feature.end = Some(pos);
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CoordinateType {
+    Position,
+    Begin,
+    End,
 }
 
 /// Extracts an attribute value as a String

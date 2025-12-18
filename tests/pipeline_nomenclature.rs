@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fs;
 use std::io::Cursor;
 use std::sync::Arc;
 
@@ -13,10 +12,36 @@ use uniprot_etl::pipeline::parser::parse_entries;
 
 #[test]
 fn parses_nomenclature_and_structures_from_sample() -> Result<()> {
-    // Load small sample XML (includes TP53-like fields)
-    let xml_path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/raw/sample_uniprot.xml");
-    let xml = fs::read_to_string(xml_path)?;
+        // Minimal inline sample XML (kept in-test so it doesn't depend on repo data files)
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<uniprot>
+    <entry>
+        <accession>P04637</accession>
+        <name>TP53_HUMAN</name>
+        <protein>
+            <recommendedName>
+                <fullName>Cellular tumor antigen p53</fullName>
+            </recommendedName>
+            <proteinExistence type="evidence at protein level"/>
+        </protein>
+        <gene>
+            <name type="primary">TP53</name>
+        </gene>
+        <organism>
+            <name type="scientific">Homo sapiens</name>
+        </organism>
+        <sequence length="10">MEEPQSDPSV</sequence>
+        <comment type="alternative products">
+            <isoform>
+                <id>ISO1</id>
+                <sequence ref="P04637-1"></sequence>
+            </isoform>
+        </comment>
+        <dbReference type="PDB" id="1TUP"/>
+        <dbReference type="AlphaFoldDB" id="AF-P04637-F1"/>
+    </entry>
+</uniprot>
+"#;
     let mut reader = Reader::from_reader(Cursor::new(xml.as_bytes()));
     reader.config_mut().trim_text(true);
 

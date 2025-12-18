@@ -30,6 +30,177 @@ impl FeatureScratch {
     }
 }
 
+// ============================================================================
+// Category A: Coordinate-Based Feature Sub-Structs
+// ============================================================================
+
+/// Active Site feature (type="active site")
+#[derive(Debug, Default, Clone)]
+pub struct ActiveSiteScratch {
+    pub id: Option<String>,
+    pub description: Option<String>,
+    pub start: Option<i32>,
+    pub end: Option<i32>,
+    pub evidence_keys: Vec<String>,
+}
+
+impl ActiveSiteScratch {
+    pub fn clear(&mut self) {
+        self.id = None;
+        self.description = None;
+        self.start = None;
+        self.end = None;
+        self.evidence_keys.clear();
+    }
+}
+
+/// Binding Site feature (type="binding site")
+#[derive(Debug, Default, Clone)]
+pub struct BindingSiteScratch {
+    pub id: Option<String>,
+    pub description: Option<String>,
+    pub start: Option<i32>,
+    pub end: Option<i32>,
+    pub evidence_keys: Vec<String>,
+}
+
+impl BindingSiteScratch {
+    pub fn clear(&mut self) {
+        self.id = None;
+        self.description = None;
+        self.start = None;
+        self.end = None;
+        self.evidence_keys.clear();
+    }
+}
+
+/// Metal Ion Coordination site (type="metal ion-binding site")
+#[derive(Debug, Default, Clone)]
+pub struct MetalCoordinationScratch {
+    pub id: Option<String>,
+    pub description: Option<String>,
+    pub metal: Option<String>,
+    pub start: Option<i32>,
+    pub end: Option<i32>,
+    pub evidence_keys: Vec<String>,
+}
+
+impl MetalCoordinationScratch {
+    pub fn clear(&mut self) {
+        self.id = None;
+        self.description = None;
+        self.metal = None;
+        self.start = None;
+        self.end = None;
+        self.evidence_keys.clear();
+    }
+}
+
+/// Mutagenesis Site feature (type="mutagenesis site")
+#[derive(Debug, Default, Clone)]
+pub struct MutagenesisSiteScratch {
+    pub id: Option<String>,
+    pub description: Option<String>,
+    pub start: Option<i32>,
+    pub end: Option<i32>,
+    pub evidence_keys: Vec<String>,
+}
+
+impl MutagenesisSiteScratch {
+    pub fn clear(&mut self) {
+        self.id = None;
+        self.description = None;
+        self.start = None;
+        self.end = None;
+        self.evidence_keys.clear();
+    }
+}
+
+/// Domain Architecture feature (type="domain")
+#[derive(Debug, Default, Clone)]
+pub struct DomainScratch {
+    pub id: Option<String>,
+    pub description: Option<String>,
+    pub domain_name: Option<String>,
+    pub start: Option<i32>,
+    pub end: Option<i32>,
+    pub evidence_keys: Vec<String>,
+}
+
+impl DomainScratch {
+    pub fn clear(&mut self) {
+        self.id = None;
+        self.description = None;
+        self.domain_name = None;
+        self.start = None;
+        self.end = None;
+        self.evidence_keys.clear();
+    }
+}
+
+/// Natural Variant feature (type="sequence variant")
+#[derive(Debug, Default, Clone)]
+pub struct NaturalVariantScratch {
+    pub id: Option<String>,
+    pub description: Option<String>,
+    pub original: Option<String>,
+    pub variation: Option<String>,
+    pub start: Option<i32>,
+    pub end: Option<i32>,
+    pub evidence_keys: Vec<String>,
+}
+
+impl NaturalVariantScratch {
+    pub fn clear(&mut self) {
+        self.id = None;
+        self.description = None;
+        self.original = None;
+        self.variation = None;
+        self.start = None;
+        self.end = None;
+        self.evidence_keys.clear();
+    }
+}
+
+// ============================================================================
+// Category B: Text-Based Comment Feature Sub-Structs
+// ============================================================================
+
+/// Subunit comment (type="subunit")
+#[derive(Debug, Default, Clone)]
+pub struct SubunitScratch {
+    pub text: String,
+    pub evidence_keys: Vec<String>,
+}
+
+impl SubunitScratch {
+    pub fn clear(&mut self) {
+        self.text.clear();
+        self.evidence_keys.clear();
+    }
+}
+
+/// Protein-Protein Interaction comment (type="interaction")
+#[derive(Debug, Default, Clone)]
+pub struct InteractionScratch {
+    pub partner_id: Option<String>,
+    pub partner_name: Option<String>,
+    pub interactant_id_1: Option<String>,
+    pub interactant_id_2: Option<String>,
+    pub evidence_keys: Vec<String>,
+}
+
+impl InteractionScratch {
+    pub fn clear(&mut self) {
+        self.partner_id = None;
+        self.partner_name = None;
+        self.interactant_id_1 = None;
+        self.interactant_id_2 = None;
+        self.evidence_keys.clear();
+    }
+}
+
+
 /// Per-location scratch data
 #[derive(Debug, Default, Clone)]
 pub struct LocationScratch {
@@ -61,6 +232,19 @@ impl IsoformScratch {
         self.vsp_ids.clear();
         self.isoform_note = None;
     }
+}
+
+/// Tracks which feature type we're currently parsing to route coordinates correctly
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FeatureContext {
+    #[default]
+    Generic,
+    ActiveSite,
+    BindingSite,
+    MetalCoordination,
+    Mutagenesis,
+    Domain,
+    NaturalVariant,
 }
 
 /// Entry-local scratch buffer for accumulating data during parsing.
@@ -114,6 +298,56 @@ pub struct EntryScratch {
 
     /// Flag: have we captured the primary accession?
     pub has_primary_accession: bool,
+
+    /// Tracks which feature type we're currently parsing (for coordinate mapping)
+    /// Used to route coordinates to the correct feature-specific buffer while in FeatureLocation state
+    pub current_feature_context: FeatureContext,
+
+    // ========================================================================
+    // Category A: Coordinate-Based Features (6 types including variant)
+    // ========================================================================
+    /// Accumulated active sites
+    pub active_sites: Vec<ActiveSiteScratch>,
+    /// Current active site being parsed
+    pub current_active_site: ActiveSiteScratch,
+
+    /// Accumulated binding sites
+    pub binding_sites: Vec<BindingSiteScratch>,
+    /// Current binding site being parsed
+    pub current_binding_site: BindingSiteScratch,
+
+    /// Accumulated metal coordination sites
+    pub metal_coordinations: Vec<MetalCoordinationScratch>,
+    /// Current metal coordination site being parsed
+    pub current_metal_coordination: MetalCoordinationScratch,
+
+    /// Accumulated mutagenesis sites
+    pub mutagenesis_sites: Vec<MutagenesisSiteScratch>,
+    /// Current mutagenesis site being parsed
+    pub current_mutagenesis_site: MutagenesisSiteScratch,
+
+    /// Accumulated domains
+    pub domains: Vec<DomainScratch>,
+    /// Current domain being parsed
+    pub current_domain: DomainScratch,
+
+    /// Accumulated natural variants
+    pub natural_variants: Vec<NaturalVariantScratch>,
+    /// Current natural variant being parsed
+    pub current_natural_variant: NaturalVariantScratch,
+
+    // ========================================================================
+    // Category B: Text-Based Comment Features (2 types)
+    // ========================================================================
+    /// Accumulated subunit comments
+    pub subunits: Vec<SubunitScratch>,
+    /// Current subunit comment being parsed
+    pub current_subunit: SubunitScratch,
+
+    /// Accumulated PPI interactions
+    pub interactions: Vec<InteractionScratch>,
+    /// Current interaction being parsed
+    pub current_interaction: InteractionScratch,
 }
 
 impl EntryScratch {
@@ -142,6 +376,29 @@ impl EntryScratch {
         self.current_isoform.clear();
         self.text_buffer.clear();
         self.has_primary_accession = false;
+
+        // Clear all new category A coordinate-based features
+        self.active_sites.clear();
+        self.current_active_site.clear();
+        self.binding_sites.clear();
+        self.current_binding_site.clear();
+        self.metal_coordinations.clear();
+        self.current_metal_coordination.clear();
+        self.mutagenesis_sites.clear();
+        self.current_mutagenesis_site.clear();
+        self.domains.clear();
+        self.current_domain.clear();
+        self.natural_variants.clear();
+        self.current_natural_variant.clear();
+
+        // Clear all category B text-based comment features
+        self.subunits.clear();
+        self.current_subunit.clear();
+        self.interactions.clear();
+        self.current_interaction.clear();
+
+        // Reset feature context
+        self.current_feature_context = FeatureContext::Generic;
     }
 
     /// Returns the canonical amino acid at a 1-based XML coordinate.

@@ -6,6 +6,7 @@ description = "High-throughput, zero-copy, streaming ETL engine for UniProtKB/Sw
 license = "MIT"
 
 [dependencies]
+indicatif = "0.17"
 # CLI
 clap = { version = "4", features = ["derive"] }
 

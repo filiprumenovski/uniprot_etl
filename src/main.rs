@@ -12,10 +12,14 @@ mod writer;
 use anyhow::Result;
 use clap::Parser;
 use crossbeam_channel::bounded;
+use indicatif::{ProgressBar, ProgressStyle};
 use std::env;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::thread;
 
 use crate::cli::Args;
@@ -122,6 +126,38 @@ fn main() -> Result<()> {
 
     let metrics = Metrics::new();
 
+    // Start a lightweight terminal progress bar that updates from Metrics
+    let progress_running = Arc::new(AtomicBool::new(true));
+    let progress_flag = Arc::clone(&progress_running);
+    let progress_metrics = metrics.clone();
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(ProgressStyle::with_template("[{spinner}] {msg}").unwrap());
+    pb.enable_steady_tick(std::time::Duration::from_millis(200));
+    let progress_handle = thread::spawn(move || {
+        while progress_flag.load(Ordering::Relaxed) {
+            let elapsed = progress_metrics.elapsed_secs();
+            let entries = progress_metrics.entries();
+            let batches = progress_metrics.batches();
+            let features = progress_metrics.features();
+            let isoforms = progress_metrics.isoforms();
+            let bytes_read = progress_metrics.bytes_read();
+            let bytes_written = progress_metrics.bytes_written();
+            let eps = if elapsed > 0.0 {
+                entries as f64 / elapsed
+            } else {
+                0.0
+            };
+            let mb_read = bytes_read as f64 / (1024.0 * 1024.0);
+            let mb_written = bytes_written as f64 / (1024.0 * 1024.0);
+            pb.set_message(format!(
+                "entries: {} ({:.0}/s) | batches: {} | features: {} | isoforms: {} | read: {:.2} MB | written: {:.2} MB",
+                entries, eps, batches, features, isoforms, mb_read, mb_written
+            ));
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        pb.finish_and_clear();
+    });
+
     // Create channel stats for backpressure tracking
     let channel_stats = Arc::new(ChannelStats::new(settings.performance.channel_capacity));
 
@@ -160,6 +196,10 @@ fn main() -> Result<()> {
 
     // Print metrics summary
     print_summary_to_tee(&metrics, &mut logger);
+
+    // Stop and join progress bar thread
+    progress_running.store(false, Ordering::Relaxed);
+    let _ = progress_handle.join();
 
     // Cleanup old runs
     if let Err(e) = cleanup_old_runs(&settings.runs.runs_dir, settings.runs.keep_runs) {

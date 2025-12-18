@@ -30,6 +30,10 @@ crossbeam-channel = "0.5"
 thiserror = "2"
 anyhow = "1"
 
+# Execution ledger & diagnostics
+sysinfo = "0.32"
+chrono = { version = "0.4", features = ["serde"] }
+
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 flamegraph = "0.6"

@@ -53,11 +53,12 @@ fn benchmark_pipeline_50k_batch(c: &mut Criterion) {
             let output_path = PathBuf::from("/tmp/output_flamegraph.parquet");
             let writer_metrics = metrics.clone();
             let settings = Settings::default();
+            let writer_settings = settings.clone();
 
             let writer_handle =
-                thread::spawn(move || write_batches(rx, &output_path, &writer_metrics, &settings));
+                thread::spawn(move || write_batches(rx, &output_path, &writer_metrics, &writer_settings));
 
-            let reader = create_xml_reader(input_file.as_path(), &settings)
+            let reader = create_xml_reader(input_file.as_path(), &settings, &metrics)
                 .expect("Failed to create XML reader");
 
             parse_entries(

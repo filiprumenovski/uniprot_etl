@@ -3,5 +3,8 @@ pub mod config;
 pub mod error;
 pub mod metrics;
 pub mod pipeline;
+pub mod report;
+pub mod runs;
+pub mod sampler;
 pub mod schema;
 pub mod writer;

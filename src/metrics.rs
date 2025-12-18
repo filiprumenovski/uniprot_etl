@@ -40,7 +40,6 @@ impl Metrics {
         self.inner.batches_written.fetch_add(1, Ordering::Relaxed);
     }
 
-    #[allow(dead_code)]
     pub fn add_bytes_read(&self, bytes: u64) {
         self.inner.bytes_read.fetch_add(bytes, Ordering::Relaxed);
     }
@@ -69,10 +68,27 @@ impl Metrics {
         self.inner.batches_written.load(Ordering::Relaxed)
     }
 
+    pub fn bytes_read(&self) -> u64 {
+        self.inner.bytes_read.load(Ordering::Relaxed)
+    }
+
+    pub fn bytes_written(&self) -> u64 {
+        self.inner.bytes_written.load(Ordering::Relaxed)
+    }
+
+    pub fn features(&self) -> u64 {
+        self.inner.features_count.load(Ordering::Relaxed)
+    }
+
+    pub fn isoforms(&self) -> u64 {
+        self.inner.isoforms_count.load(Ordering::Relaxed)
+    }
+
     pub fn elapsed_secs(&self) -> f64 {
         self.inner.start_time.elapsed().as_secs_f64()
     }
 
+    #[allow(dead_code)]
     pub fn print_summary(&self) {
         let elapsed = self.elapsed_secs();
         let entries = self.entries();

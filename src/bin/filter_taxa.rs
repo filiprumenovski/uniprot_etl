@@ -38,7 +38,7 @@ fn main() -> Result<()> {
 
     // Build a RecordBatch reader from Parquet
     let file = File::open(&input_path)?;
-    let mut rb_reader = ParquetRecordBatchReaderBuilder::try_new(file)?
+    let rb_reader = ParquetRecordBatchReaderBuilder::try_new(file)?
         .with_batch_size(64_000)
         .build()?;
 
@@ -68,7 +68,7 @@ fn main() -> Result<()> {
     )?;
 
     // Stream through batches and route rows by organism_id
-    while let Some(batch) = rb_reader.next() {
+    for batch in rb_reader {
         let batch = batch?;
         let organism_idx = batch
             .schema()

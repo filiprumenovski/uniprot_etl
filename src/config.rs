@@ -14,6 +14,9 @@ pub struct Settings {
     pub performance: PerformanceConfig,
     /// Logging configuration
     pub logging: LoggingConfig,
+    /// Runs/execution ledger configuration
+    #[serde(default)]
+    pub runs: RunsConfig,
 }
 
 /// Storage configuration section
@@ -64,6 +67,17 @@ pub struct LoggingConfig {
     pub metrics_interval_secs: u64,
 }
 
+/// Runs/execution ledger configuration section
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunsConfig {
+    /// Directory to store run artifacts
+    #[serde(default = "default_runs_dir")]
+    pub runs_dir: PathBuf,
+    /// Number of runs to keep (older runs are deleted)
+    #[serde(default = "default_keep_runs")]
+    pub keep_runs: usize,
+}
+
 // Default value functions
 fn default_output_path() -> PathBuf {
     PathBuf::from("data/parquet/uniprot.parquet")
@@ -103,6 +117,14 @@ fn default_log_level() -> String {
 
 fn default_metrics_interval() -> u64 {
     5
+}
+
+fn default_runs_dir() -> PathBuf {
+    PathBuf::from("runs")
+}
+
+fn default_keep_runs() -> usize {
+    10
 }
 
 impl Settings {
@@ -175,6 +197,7 @@ impl Settings {
     pub fn resolve_paths(&mut self, root: &Path) -> Result<()> {
         self.storage.output_path = resolve_path(&self.storage.output_path, root)?;
         self.storage.temp_dir = resolve_path(&self.storage.temp_dir, root)?;
+        self.runs.runs_dir = resolve_path(&self.runs.runs_dir, root)?;
 
         if let Some(ref mut input_path) = self.storage.input_path {
             *input_path = resolve_path(input_path, root)?;
@@ -189,6 +212,15 @@ impl Settings {
             .input_path
             .as_deref()
             .ok_or_else(|| anyhow!("input_path is required (set via --input or config.yaml)"))
+    }
+
+    /// Save a snapshot of the current configuration to a YAML file.
+    pub fn save_snapshot(&self, path: &Path) -> Result<()> {
+        let yaml =
+            serde_yaml::to_string(self).context("Failed to serialize configuration to YAML")?;
+        fs::write(path, yaml)
+            .with_context(|| format!("Failed to write config snapshot to {}", path.display()))?;
+        Ok(())
     }
 }
 
@@ -213,6 +245,16 @@ impl Default for Settings {
                 log_level: default_log_level(),
                 metrics_interval_secs: default_metrics_interval(),
             },
+            runs: RunsConfig::default(),
+        }
+    }
+}
+
+impl Default for RunsConfig {
+    fn default() -> Self {
+        Self {
+            runs_dir: default_runs_dir(),
+            keep_runs: default_keep_runs(),
         }
     }
 }

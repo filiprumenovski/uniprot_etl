@@ -33,7 +33,7 @@ fn parses_real_uniprot_file_smoke() -> Result<()> {
         rows
     });
 
-    let reader = create_xml_reader(&path, &settings)?;
+    let reader = create_xml_reader(&path, &settings, &metrics)?;
     parse_entries(reader, tx, &metrics, 5_000)?;
 
     let total_rows = consumer.join().expect("consumer thread panicked");

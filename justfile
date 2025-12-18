@@ -27,6 +27,10 @@ run input_path:
 run-debug input_path:
     cargo run --bin uniprot_etl -- --config config.yaml --input "{{input_path}}"
 
+# Swarm mode: process a directory of XML files in parallel
+run-swarm input_dir output_dir="data/parquet":
+    cargo run --release --bin uniprot_etl -- --config config.yaml --input "{{input_dir}}" --output "{{output_dir}}"
+
 clean-data flags="--force":
     bash scripts/clean_data.sh {{flags}}
 

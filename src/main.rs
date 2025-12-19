@@ -30,7 +30,7 @@ use std::thread;
 use crate::cli::Args;
 use crate::config::Settings;
 use crate::fasta::load_fasta_map;
-use crate::metrics::{LocalMetricsAdapter, Metrics};
+use crate::metrics::{LocalMetricsAdapter, Metrics, MetricsCollector};
 use crate::pipeline::parser::parse_entries;
 use crate::pipeline::reader::create_xml_reader;
 use crate::report::{RunReport, RunStatus};
@@ -245,11 +245,11 @@ fn main() -> Result<()> {
 
 /// Process a single XML file through the ETL pipeline.
 /// Creates its own channel and writer thread for complete isolation.
-fn process_single_file(
+fn process_single_file<M: MetricsCollector>(
     input_path: &Path,
     output_path: &Path,
     settings: &Settings,
-    metrics: &Metrics,
+    metrics: &M,
     sidecar_fasta: Option<Arc<HashMap<String, String>>>,
 ) -> Result<()> {
     // Create bounded channel for this file (isolated from other files)
@@ -360,19 +360,11 @@ fn run_swarm_pipeline(
         // The Mutex is uncontended since each worker operates on its own LocalMetricsAdapter
         let local_metrics_adapter = LocalMetricsAdapter::new();
 
-        // Convert to Metrics-like type for compatibility
-        // This is safe because LocalMetricsAdapter has the same API as Metrics
-        let local_as_metrics = unsafe {
-            // SAFETY: LocalMetricsAdapter has identical API to Metrics
-            // We transmute the reference to make it compatible with process_single_file
-            std::mem::transmute::<&LocalMetricsAdapter, &Metrics>(&local_metrics_adapter)
-        };
-
         if let Err(e) = process_single_file(
             input_path,
             &output_path,
             settings,
-            local_as_metrics,
+            &local_metrics_adapter,
             sidecar_fasta.clone(),
         ) {
             eprintln!("[ERROR] Failed to process {}: {:#}", input_path.display(), e);

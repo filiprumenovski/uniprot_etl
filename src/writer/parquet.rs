@@ -7,15 +7,15 @@ use std::fs::File;
 use std::path::Path;
 
 use crate::config::Settings;
-use crate::metrics::Metrics;
+use crate::metrics::MetricsCollector;
 use crate::schema::schema_ref;
 use anyhow::{anyhow, Result};
 
 /// Consumes RecordBatches from the channel and writes them to a Parquet file.
-pub fn write_batches(
+pub fn write_batches<M: MetricsCollector>(
     rx: Receiver<RecordBatch>,
     output: &Path,
-    metrics: &Metrics,
+    metrics: &M,
     settings: &Settings,
 ) -> Result<()> {
     let file = File::create(output)?;

@@ -2,7 +2,7 @@ use arrow::record_batch::RecordBatch;
 use crossbeam_channel::Sender;
 
 use crate::error::{EtlError, Result};
-use crate::metrics::Metrics;
+use crate::metrics::MetricsCollector;
 use crate::pipeline::builders::EntryBuilders;
 use crate::pipeline::transformer::TransformedRow;
 
@@ -10,26 +10,21 @@ use crate::pipeline::transformer::TransformedRow;
 pub const DEFAULT_BATCH_SIZE: usize = 10_000;
 
 /// Manages batching of entries into RecordBatches and sending to the writer.
-pub struct Batcher {
+pub struct Batcher<M: MetricsCollector> {
     builders: EntryBuilders,
     batch_size: usize,
     sender: Sender<RecordBatch>,
-    metrics: Metrics,
+    metrics: M,
 }
 
-impl Batcher {
-    #[allow(dead_code)]
-    pub fn new(sender: Sender<RecordBatch>, metrics: Metrics) -> Self {
-        Self::with_batch_size(sender, metrics, DEFAULT_BATCH_SIZE)
-    }
-
+impl<M: MetricsCollector> Batcher<M> {
     pub fn with_batch_size(
         sender: Sender<RecordBatch>,
-        metrics: Metrics,
+        metrics: M,
         batch_size: usize,
     ) -> Self {
         Self {
-            builders: EntryBuilders::new(batch_size, metrics.clone()),
+            builders: EntryBuilders::new(batch_size),
             batch_size,
             sender,
             metrics,
@@ -38,7 +33,7 @@ impl Batcher {
 
     /// Adds a pre-transformed row to the current batch. Flushes if batch is full.
     pub fn add_row(&mut self, row: TransformedRow) -> Result<()> {
-        self.builders.append_row(&row);
+        self.builders.append_row(&row, &self.metrics);
         self.metrics.inc_entries();
 
         if self.builders.len() >= self.batch_size {

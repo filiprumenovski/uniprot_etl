@@ -1,5 +1,5 @@
 use crate::error::{EtlError, Result};
-use crate::metrics::Metrics;
+use crate::metrics::MetricsCollector;
 use crate::pipeline::mapper::CoordinateMapper;
 use crate::pipeline::scratch::{IsoformScratch, ParsedEntry};
 use std::collections::HashMap;
@@ -15,13 +15,13 @@ pub struct TransformedRow {
     pub mapper: CoordinateMapper,
 }
 
-pub struct EntryTransformer {
-    metrics: Metrics,
+pub struct EntryTransformer<M: MetricsCollector> {
+    metrics: M,
     sidecar_fasta: Option<Arc<HashMap<String, String>>>,
 }
 
-impl EntryTransformer {
-    pub fn new(metrics: Metrics, sidecar_fasta: Option<Arc<HashMap<String, String>>>) -> Self {
+impl<M: MetricsCollector> EntryTransformer<M> {
+    pub fn new(metrics: M, sidecar_fasta: Option<Arc<HashMap<String, String>>>) -> Self {
         Self {
             metrics,
             sidecar_fasta,

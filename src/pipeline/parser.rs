@@ -7,17 +7,17 @@ use std::io::BufRead;
 use std::sync::Arc;
 
 use crate::error::Result;
-use crate::metrics::Metrics;
+use crate::metrics::MetricsCollector;
 use crate::pipeline::batcher::Batcher;
 use crate::pipeline::handlers::metadata;
 use crate::pipeline::scratch::EntryScratch;
 use crate::pipeline::transformer::EntryTransformer;
 
 /// Parses UniProt XML entries and sends RecordBatches to the channel.
-pub fn parse_entries<R: BufRead>(
+pub fn parse_entries<R: BufRead, M: MetricsCollector>(
     mut reader: Reader<R>,
     sender: Sender<RecordBatch>,
-    metrics: &Metrics,
+    metrics: &M,
     batch_size: usize,
     sidecar_fasta: Option<Arc<HashMap<String, String>>>,
 ) -> Result<()> {

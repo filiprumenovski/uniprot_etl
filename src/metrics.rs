@@ -2,6 +2,26 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+/// Trait for metrics collection, implemented by both global (atomic) and local (plain) metrics.
+/// This allows pipeline components to be generic over metrics type while maintaining zero overhead.
+pub trait MetricsCollector: Clone + Send + Sync + 'static {
+    fn inc_entries(&self);
+    fn inc_batches(&self);
+    fn add_bytes_read(&self, bytes: u64);
+    fn add_bytes_written(&self, bytes: u64);
+    fn add_features(&self, count: u64);
+    fn add_isoforms(&self, count: u64);
+    fn add_ptm_attempted(&self, count: u64);
+    fn add_ptm_mapped(&self, count: u64);
+    fn add_ptm_failed(&self, count: u64);
+    fn add_ptm_failed_canonical_oob(&self, count: u64);
+    fn add_ptm_failed_vsp_deletion(&self, count: u64);
+    fn add_ptm_failed_mapper_oob(&self, count: u64);
+    fn add_ptm_failed_vsp_unresolvable(&self, count: u64);
+    fn add_ptm_failed_isoform_oob(&self, count: u64);
+    fn add_ptm_failed_residue_mismatch(&self, count: u64);
+}
+
 /// Thread-local metrics for zero-contention counting in parallel workloads.
 /// Use this in worker threads, then merge into global Metrics at the end.
 #[derive(Default)]
@@ -154,69 +174,71 @@ impl LocalMetricsAdapter {
         }
     }
 
-    pub fn inc_entries(&self) {
-        self.inner.lock().unwrap().inc_entries();
-    }
-
-    pub fn inc_batches(&self) {
-        self.inner.lock().unwrap().inc_batches();
-    }
-
-    pub fn add_bytes_read(&self, bytes: u64) {
-        self.inner.lock().unwrap().add_bytes_read(bytes);
-    }
-
-    pub fn add_bytes_written(&self, bytes: u64) {
-        self.inner.lock().unwrap().add_bytes_written(bytes);
-    }
-
-    pub fn add_features(&self, count: u64) {
-        self.inner.lock().unwrap().add_features(count);
-    }
-
-    pub fn add_isoforms(&self, count: u64) {
-        self.inner.lock().unwrap().add_isoforms(count);
-    }
-
-    pub fn add_ptm_attempted(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_attempted(count);
-    }
-
-    pub fn add_ptm_mapped(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_mapped(count);
-    }
-
-    pub fn add_ptm_failed(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_failed(count);
-    }
-
-    pub fn add_ptm_failed_canonical_oob(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_failed_canonical_oob(count);
-    }
-
-    pub fn add_ptm_failed_vsp_deletion(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_failed_vsp_deletion(count);
-    }
-
-    pub fn add_ptm_failed_mapper_oob(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_failed_mapper_oob(count);
-    }
-
-    pub fn add_ptm_failed_vsp_unresolvable(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_failed_vsp_unresolvable(count);
-    }
-
-    pub fn add_ptm_failed_isoform_oob(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_failed_isoform_oob(count);
-    }
-
-    pub fn add_ptm_failed_residue_mismatch(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_failed_residue_mismatch(count);
-    }
-
     /// Merge the accumulated local metrics into a global Metrics instance
     pub fn merge_into(&self, global: &Metrics) {
         self.inner.lock().unwrap().merge_into(global);
+    }
+}
+
+impl MetricsCollector for LocalMetricsAdapter {
+    fn inc_entries(&self) {
+        self.inner.lock().unwrap().inc_entries();
+    }
+
+    fn inc_batches(&self) {
+        self.inner.lock().unwrap().inc_batches();
+    }
+
+    fn add_bytes_read(&self, bytes: u64) {
+        self.inner.lock().unwrap().add_bytes_read(bytes);
+    }
+
+    fn add_bytes_written(&self, bytes: u64) {
+        self.inner.lock().unwrap().add_bytes_written(bytes);
+    }
+
+    fn add_features(&self, count: u64) {
+        self.inner.lock().unwrap().add_features(count);
+    }
+
+    fn add_isoforms(&self, count: u64) {
+        self.inner.lock().unwrap().add_isoforms(count);
+    }
+
+    fn add_ptm_attempted(&self, count: u64) {
+        self.inner.lock().unwrap().add_ptm_attempted(count);
+    }
+
+    fn add_ptm_mapped(&self, count: u64) {
+        self.inner.lock().unwrap().add_ptm_mapped(count);
+    }
+
+    fn add_ptm_failed(&self, count: u64) {
+        self.inner.lock().unwrap().add_ptm_failed(count);
+    }
+
+    fn add_ptm_failed_canonical_oob(&self, count: u64) {
+        self.inner.lock().unwrap().add_ptm_failed_canonical_oob(count);
+    }
+
+    fn add_ptm_failed_vsp_deletion(&self, count: u64) {
+        self.inner.lock().unwrap().add_ptm_failed_vsp_deletion(count);
+    }
+
+    fn add_ptm_failed_mapper_oob(&self, count: u64) {
+        self.inner.lock().unwrap().add_ptm_failed_mapper_oob(count);
+    }
+
+    fn add_ptm_failed_vsp_unresolvable(&self, count: u64) {
+        self.inner.lock().unwrap().add_ptm_failed_vsp_unresolvable(count);
+    }
+
+    fn add_ptm_failed_isoform_oob(&self, count: u64) {
+        self.inner.lock().unwrap().add_ptm_failed_isoform_oob(count);
+    }
+
+    fn add_ptm_failed_residue_mismatch(&self, count: u64) {
+        self.inner.lock().unwrap().add_ptm_failed_residue_mismatch(count);
     }
 }
 
@@ -503,5 +525,67 @@ impl Metrics {
 impl Default for Metrics {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl MetricsCollector for Metrics {
+    fn inc_entries(&self) {
+        self.inner.entries_parsed.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn inc_batches(&self) {
+        self.inner.batches_written.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn add_bytes_read(&self, bytes: u64) {
+        self.inner.bytes_read.fetch_add(bytes, Ordering::Relaxed);
+    }
+
+    fn add_bytes_written(&self, bytes: u64) {
+        self.inner.bytes_written.fetch_add(bytes, Ordering::Relaxed);
+    }
+
+    fn add_features(&self, count: u64) {
+        self.inner.features_count.fetch_add(count, Ordering::Relaxed);
+    }
+
+    fn add_isoforms(&self, count: u64) {
+        self.inner.isoforms_count.fetch_add(count, Ordering::Relaxed);
+    }
+
+    fn add_ptm_attempted(&self, count: u64) {
+        self.inner.ptm_attempted.fetch_add(count, Ordering::Relaxed);
+    }
+
+    fn add_ptm_mapped(&self, count: u64) {
+        self.inner.ptm_mapped.fetch_add(count, Ordering::Relaxed);
+    }
+
+    fn add_ptm_failed(&self, count: u64) {
+        self.inner.ptm_failed.fetch_add(count, Ordering::Relaxed);
+    }
+
+    fn add_ptm_failed_canonical_oob(&self, count: u64) {
+        self.inner.ptm_failures.add_canonical_oob(count);
+    }
+
+    fn add_ptm_failed_vsp_deletion(&self, count: u64) {
+        self.inner.ptm_failures.add_vsp_deletion(count);
+    }
+
+    fn add_ptm_failed_mapper_oob(&self, count: u64) {
+        self.inner.ptm_failures.add_mapper_oob(count);
+    }
+
+    fn add_ptm_failed_vsp_unresolvable(&self, count: u64) {
+        self.inner.ptm_failures.add_vsp_unresolvable(count);
+    }
+
+    fn add_ptm_failed_isoform_oob(&self, count: u64) {
+        self.inner.ptm_failures.add_isoform_oob(count);
+    }
+
+    fn add_ptm_failed_residue_mismatch(&self, count: u64) {
+        self.inner.ptm_failures.add_residue_mismatch(count);
     }
 }

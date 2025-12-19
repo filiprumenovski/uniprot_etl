@@ -10,7 +10,7 @@ use arrow::datatypes::{DataType, Field, Fields};
 use arrow::record_batch::RecordBatch;
 
 use crate::error::Result;
-use crate::metrics::Metrics;
+use crate::metrics::MetricsCollector;
 use crate::pipeline::builders::common::FeatureListBuilder;
 use crate::pipeline::builders::ptm::append_ptm_sites;
 use crate::pipeline::scratch::ParsedEntry;
@@ -41,11 +41,10 @@ pub struct EntryBuilders {
     pub subunits: ListBuilder<StructBuilder>,
     pub interactions: ListBuilder<StructBuilder>,
     capacity: usize,
-    metrics: Metrics,
 }
 
 impl EntryBuilders {
-    pub fn new(capacity: usize, metrics: Metrics) -> Self {
+    pub fn new(capacity: usize) -> Self {
         Self {
             id: StringBuilder::with_capacity(capacity, capacity * 10),
             sequence: StringBuilder::with_capacity(capacity, capacity * 500),
@@ -70,14 +69,13 @@ impl EntryBuilders {
             subunits: create_subunit_builder(capacity),
             interactions: create_interaction_builder(capacity),
             capacity,
-            metrics,
         }
     }
 
-    ///
+    /// Append a single row to the current batch.
     /// This is used for isoform "explosion": the same entry metadata is replicated,
     /// while row_id, row_sequence, and parent_id vary per row.
-    pub fn append_row(&mut self, row: &TransformedRow) {
+    pub fn append_row<M: MetricsCollector>(&mut self, row: &TransformedRow, metrics: &M) {
         let entry: &ParsedEntry = &row.entry;
 
         self.id.append_value(&row.row_id);
@@ -172,7 +170,7 @@ impl EntryBuilders {
         append_interactions(&mut self.interactions, entry);
 
         // PTM sites (residue-centric)
-        append_ptm_sites(&mut self.ptm_sites, &self.metrics, entry, row);
+        append_ptm_sites(&mut self.ptm_sites, metrics, entry, row);
     }
 
     /// Finishes the current batch and returns a RecordBatch
@@ -204,8 +202,7 @@ impl EntryBuilders {
 
         let batch = RecordBatch::try_new(schema_ref(), arrays)?;
 
-        let metrics = self.metrics.clone();
-        *self = Self::new(self.capacity, metrics);
+        *self = Self::new(self.capacity);
 
         Ok(batch)
     }

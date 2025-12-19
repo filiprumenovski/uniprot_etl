@@ -1,14 +1,14 @@
 use arrow::array::{Float32Builder, Int32Builder, ListBuilder, StringBuilder, StructBuilder};
 use std::collections::BTreeMap;
 
-use crate::metrics::Metrics;
+use crate::metrics::MetricsCollector;
 use crate::pipeline::mapper::{CoordinateMapper, MapFailure};
 use crate::pipeline::scratch::ParsedEntry;
 use crate::pipeline::transformer::TransformedRow;
 
-pub fn append_ptm_sites(
+pub fn append_ptm_sites<M: MetricsCollector>(
     builder: &mut ListBuilder<StructBuilder>,
-    metrics: &Metrics,
+    metrics: &M,
     entry: &ParsedEntry,
     row: &TransformedRow,
 ) {
@@ -135,8 +135,8 @@ pub fn append_ptm_sites(
     builder.append(true);
 }
 
-fn map_point(
-    metrics: &Metrics,
+fn map_point<M: MetricsCollector>(
+    metrics: &M,
     mapper: &CoordinateMapper,
     start: i32,
     parent_id: &str,

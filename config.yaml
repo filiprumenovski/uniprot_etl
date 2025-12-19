@@ -1,8 +1,8 @@
 version: "1.0"
 
 storage:
-  input_path: "/Volumes/NVMe 2TB/uniprot_sprot.xml.gz"
-  fasta_sidecar_path: "/Volumes/NVMe 2TB/uniprot_sprot_varsplic.fasta"
+  input_path: "/Volumes/complete/uniprot_sprot.xml.gz"
+  # fasta_sidecar_path: "/Volumes/complete/uniprot_sprot_varsplic.fasta.gz"
   output_path: "data/parquet/uniprot.parquet"
   temp_dir: "data/tmp"
 

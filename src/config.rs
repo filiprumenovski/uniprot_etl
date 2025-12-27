@@ -17,6 +17,9 @@ pub struct Settings {
     /// Runs/execution ledger configuration
     #[serde(default)]
     pub runs: RunsConfig,
+    /// Observability configuration (Prometheus metrics server)
+    #[serde(default)]
+    pub observability: ObservabilityConfig,
 }
 
 /// Storage configuration section
@@ -81,6 +84,17 @@ pub struct RunsConfig {
     pub keep_runs: usize,
 }
 
+/// Observability configuration section (Prometheus metrics server)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObservabilityConfig {
+    /// Enable Prometheus metrics HTTP server (default: true)
+    #[serde(default = "default_enable_metrics_server")]
+    pub enable_metrics_server: bool,
+    /// Address to bind metrics server to (default: "127.0.0.1:9090")
+    #[serde(default = "default_metrics_bind_address")]
+    pub metrics_bind_address: String,
+}
+
 // Default value functions
 fn default_output_path() -> PathBuf {
     PathBuf::from("data/parquet/uniprot.parquet")
@@ -128,6 +142,23 @@ fn default_runs_dir() -> PathBuf {
 
 fn default_keep_runs() -> usize {
     10
+}
+
+fn default_enable_metrics_server() -> bool {
+    true // Enabled by default (observability-first)
+}
+
+fn default_metrics_bind_address() -> String {
+    "127.0.0.1:9090".to_string()
+}
+
+impl Default for ObservabilityConfig {
+    fn default() -> Self {
+        Self {
+            enable_metrics_server: default_enable_metrics_server(),
+            metrics_bind_address: default_metrics_bind_address(),
+        }
+    }
 }
 
 impl Settings {
@@ -202,7 +233,8 @@ impl Settings {
         self
     }
 
-    /// Resolve paths relative to the project root
+    /// Resolve paths relative to the project root.
+    /// Also auto-detects FASTA sidecar if not explicitly set.
     pub fn resolve_paths(&mut self, root: &Path) -> Result<()> {
         self.storage.output_path = resolve_path(&self.storage.output_path, root)?;
         self.storage.temp_dir = resolve_path(&self.storage.temp_dir, root)?;
@@ -214,6 +246,24 @@ impl Settings {
 
         if let Some(ref mut fasta_path) = self.storage.fasta_sidecar_path {
             *fasta_path = resolve_path(fasta_path, root)?;
+        }
+
+        // Auto-detect FASTA sidecar if not explicitly set
+        if self.storage.fasta_sidecar_path.is_none() {
+            if let Some(ref input_path) = self.storage.input_path {
+                match crate::fasta::detect_sidecar(input_path) {
+                    Ok(Some(detected_path)) => {
+                        self.storage.fasta_sidecar_path = Some(detected_path);
+                    }
+                    Ok(None) => {
+                        // No sidecar found - fine, pipeline works without it
+                    }
+                    Err(e) => {
+                        eprintln!("[WARN] Failed to auto-detect FASTA sidecar: {}", e);
+                        // Non-fatal - continue without sidecar
+                    }
+                }
+            }
         }
 
         Ok(())
@@ -260,6 +310,7 @@ impl Default for Settings {
                 metrics_interval_secs: default_metrics_interval(),
             },
             runs: RunsConfig::default(),
+            observability: ObservabilityConfig::default(),
         }
     }
 }

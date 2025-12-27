@@ -1,8 +1,9 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
+use glob::glob;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Loads a FASTA file into a map of accession -> sequence.
 ///
@@ -46,6 +47,150 @@ pub fn load_fasta_map(path: &Path) -> Result<HashMap<String, String>> {
     }
 
     Ok(map)
+}
+
+/// Attempts to auto-detect a FASTA sidecar file in the given directory.
+///
+/// Search strategy (in order of priority):
+/// 1. Files matching `*varsplic*.fasta` or `*varsplic*.fasta.gz`
+/// 2. Files matching `*.fasta` or `*.fasta.gz` (fallback)
+///
+/// Returns the most specific match, or None if no candidates found.
+///
+/// # Arguments
+/// * `input_dir` - Directory to search (or file, in which case parent directory is used)
+///
+/// # Example
+/// ```ignore
+/// let sidecar = detect_sidecar(Path::new("/data/uniprot/"))?;
+/// if let Some(path) = sidecar {
+///     println!("Found sidecar: {}", path.display());
+/// }
+/// ```
+pub fn detect_sidecar(input_dir: &Path) -> Result<Option<PathBuf>> {
+    // Normalize to directory (handle both dir and file inputs)
+    let search_dir = if input_dir.is_file() {
+        input_dir
+            .parent()
+            .ok_or_else(|| anyhow!("Cannot determine parent directory of {}", input_dir.display()))?
+    } else if input_dir.is_dir() {
+        input_dir
+    } else {
+        return Err(anyhow!(
+            "Path does not exist: {}",
+            input_dir.display()
+        ));
+    };
+
+    // Priority 1: varsplic pattern (most specific)
+    let varsplic_patterns = [
+        format!("{}/*varsplic*.fasta.gz", search_dir.display()),
+        format!("{}/*varsplic*.fasta", search_dir.display()),
+    ];
+
+    for pattern in &varsplic_patterns {
+        let matches: Vec<PathBuf> = glob(pattern)
+            .map_err(|e| anyhow!("Invalid glob pattern: {}", e))?
+            .filter_map(Result::ok)
+            .collect();
+
+        if !matches.is_empty() {
+            return Ok(disambiguate_candidates(matches, "varsplic"));
+        }
+    }
+
+    // Priority 2: generic .fasta (fallback)
+    let generic_patterns = [
+        format!("{}/*.fasta.gz", search_dir.display()),
+        format!("{}/*.fasta", search_dir.display()),
+    ];
+
+    for pattern in &generic_patterns {
+        let matches: Vec<PathBuf> = glob(pattern)
+            .map_err(|e| anyhow!("Invalid glob pattern: {}", e))?
+            .filter_map(Result::ok)
+            .collect();
+
+        if !matches.is_empty() {
+            return Ok(disambiguate_candidates(matches, "generic"));
+        }
+    }
+
+    Ok(None)
+}
+
+/// Disambiguate multiple FASTA candidates using heuristics.
+fn disambiguate_candidates(mut candidates: Vec<PathBuf>, category: &str) -> Option<PathBuf> {
+    if candidates.is_empty() {
+        return None;
+    }
+
+    // Single match - return immediately
+    if candidates.len() == 1 {
+        let selected = candidates.pop().unwrap();
+        eprintln!(
+            "[INFO] Auto-detected FASTA sidecar ({}): {}",
+            category,
+            selected.display()
+        );
+        return Some(selected);
+    }
+
+    // Multiple matches - apply heuristics:
+
+    // 1. Prefer uncompressed over compressed (faster to read)
+    let uncompressed: Vec<_> = candidates
+        .iter()
+        .filter(|p| !p.to_string_lossy().ends_with(".gz"))
+        .cloned()
+        .collect();
+
+    if uncompressed.len() == 1 {
+        eprintln!(
+            "[INFO] Auto-detected FASTA sidecar ({}): {} (preferred uncompressed)",
+            category,
+            uncompressed[0].display()
+        );
+        return Some(uncompressed[0].clone());
+    }
+
+    // 2. Prefer standard UniProt naming
+    let standard_uniprot: Vec<_> = candidates
+        .iter()
+        .filter(|p| {
+            let name = p.file_name().unwrap_or_default().to_string_lossy();
+            name.contains("uniprot_sprot_varsplic") || name.contains("uniprot_trembl_varsplic")
+        })
+        .cloned()
+        .collect();
+
+    if standard_uniprot.len() == 1 {
+        eprintln!(
+            "[INFO] Auto-detected FASTA sidecar ({}): {} (standard UniProt naming)",
+            category,
+            standard_uniprot[0].display()
+        );
+        return Some(standard_uniprot[0].clone());
+    }
+
+    // 3. Largest file (likely most complete)
+    candidates.sort_by_key(|p| {
+        std::fs::metadata(p)
+            .ok()
+            .map(|m| m.len())
+            .unwrap_or(0)
+    });
+    candidates.reverse();
+
+    let selected = candidates[0].clone();
+    eprintln!(
+        "[INFO] Auto-detected FASTA sidecar ({}): {} (largest among {} candidates)",
+        category,
+        selected.display(),
+        candidates.len()
+    );
+
+    Some(selected)
 }
 
 fn parse_fasta_key(header: &str) -> String {

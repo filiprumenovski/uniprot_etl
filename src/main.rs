@@ -26,6 +26,7 @@ use std::thread;
 use crate::cli::Args;
 use crate::config::Settings;
 use crate::metrics::Metrics;
+use crate::observability::start_metrics_server;
 use crate::pipeline::{run_pipeline, PipelineArgs};
 use crate::report::{RunReport, RunStatus};
 use crate::runs::{cleanup_old_runs, RunContext};
@@ -168,6 +169,32 @@ fn main() -> Result<()> {
     // Create channel stats for backpressure tracking (used in single-file mode only)
     let channel_stats = Arc::new(ChannelStats::new(settings.performance.channel_capacity));
 
+    // Start Prometheus metrics server if enabled
+    let metrics_server_handle = if settings.observability.enable_metrics_server {
+        match start_metrics_server(
+            metrics.clone(),
+            Arc::clone(&channel_stats),
+            settings.observability.metrics_bind_address.clone(),
+        ) {
+            Ok(handle) => {
+                log!(
+                    logger,
+                    "[INFO] Metrics server started on http://{}",
+                    settings.observability.metrics_bind_address
+                );
+                Some(handle)
+            }
+            Err(e) => {
+                log!(logger, "[WARN] Failed to start metrics server: {}", e);
+                log!(logger, "[WARN] Continuing without Prometheus metrics");
+                None
+            }
+        }
+    } else {
+        log!(logger, "[INFO] Metrics server disabled by config");
+        None
+    };
+
     // Start resource sampler (background thread sampling at 1Hz)
     // Note: In swarm mode, this tracks a dummy channel; per-file channels are not monitored
     let mut sampler = ResourceSampler::start(Arc::clone(&channel_stats));
@@ -183,6 +210,13 @@ fn main() -> Result<()> {
 
     // Stop the sampler
     sampler.stop();
+
+    // Shutdown metrics server
+    if let Some(handle) = metrics_server_handle {
+        if let Err(e) = handle.shutdown() {
+            log!(logger, "[WARN] Error shutting down metrics server: {}", e);
+        }
+    }
 
     // Generate report (even on error)
     let status = match &etl_result {

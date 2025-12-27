@@ -478,6 +478,179 @@ impl Metrics {
         self.inner.start_time.elapsed().as_secs_f64()
     }
 
+    /// Generate Prometheus text exposition format for metrics scraping.
+    ///
+    /// Generates HELP/TYPE comments and metric values in the format expected
+    /// by Prometheus. All values are read atomically with Relaxed ordering.
+    ///
+    /// # Arguments
+    /// * `backpressure` - Channel backpressure ratio (0.0-1.0)
+    ///
+    /// # Example
+    /// ```ignore
+    /// let metrics = Metrics::new();
+    /// let prometheus_output = metrics.to_prometheus_string(0.5);
+    /// println!("{}", prometheus_output);
+    /// ```
+    pub fn to_prometheus_string(&self, backpressure: f32) -> String {
+        let mut output = String::with_capacity(4096);
+
+        // Read all metrics atomically
+        let entries = self.entries();
+        let batches = self.batches();
+        let bytes_read = self.bytes_read();
+        let bytes_written = self.bytes_written();
+        let features = self.features();
+        let isoforms = self.isoforms();
+        let ptm_attempted = self.ptm_attempted();
+        let ptm_mapped = self.ptm_mapped();
+        let ptm_failed = self.ptm_failed();
+        let elapsed = self.elapsed_secs();
+
+        // Helper macro for counters
+        macro_rules! counter {
+            ($name:expr, $help:expr, $value:expr) => {
+                output.push_str(&format!(
+                    "# HELP {} {}\n# TYPE {} counter\n{} {}\n\n",
+                    $name, $help, $name, $name, $value
+                ));
+            };
+        }
+
+        // Helper macro for gauges
+        macro_rules! gauge {
+            ($name:expr, $help:expr, $value:expr) => {
+                output.push_str(&format!(
+                    "# HELP {} {}\n# TYPE {} gauge\n{} {}\n\n",
+                    $name, $help, $name, $name, $value
+                ));
+            };
+        }
+
+        // Counters
+        counter!(
+            "uniprot_etl_entries_total",
+            "Total number of UniProt entries parsed",
+            entries
+        );
+        counter!(
+            "uniprot_etl_batches_total",
+            "Total number of Parquet batches written",
+            batches
+        );
+        counter!(
+            "uniprot_etl_bytes_read_total",
+            "Total bytes read from XML input",
+            bytes_read
+        );
+        counter!(
+            "uniprot_etl_bytes_written_total",
+            "Total bytes written to Parquet output",
+            bytes_written
+        );
+        counter!(
+            "uniprot_etl_features_total",
+            "Total number of features extracted",
+            features
+        );
+        counter!(
+            "uniprot_etl_isoforms_total",
+            "Total number of isoforms extracted",
+            isoforms
+        );
+        counter!(
+            "uniprot_etl_ptm_attempted_total",
+            "Total PTM mappings attempted",
+            ptm_attempted
+        );
+        counter!(
+            "uniprot_etl_ptm_mapped_total",
+            "Total PTM mappings succeeded",
+            ptm_mapped
+        );
+        counter!(
+            "uniprot_etl_ptm_failed_total",
+            "Total PTM mappings failed",
+            ptm_failed
+        );
+
+        // PTM failures with labels
+        output.push_str("# HELP uniprot_etl_ptm_failures_total PTM mapping failures by type\n");
+        output.push_str("# TYPE uniprot_etl_ptm_failures_total counter\n");
+        output.push_str(&format!(
+            "uniprot_etl_ptm_failures_total{{failure_type=\"canonical_oob\"}} {}\n",
+            self.ptm_failed_canonical_oob()
+        ));
+        output.push_str(&format!(
+            "uniprot_etl_ptm_failures_total{{failure_type=\"vsp_deletion\"}} {}\n",
+            self.ptm_failed_vsp_deletion()
+        ));
+        output.push_str(&format!(
+            "uniprot_etl_ptm_failures_total{{failure_type=\"mapper_oob\"}} {}\n",
+            self.ptm_failed_mapper_oob()
+        ));
+        output.push_str(&format!(
+            "uniprot_etl_ptm_failures_total{{failure_type=\"vsp_unresolvable\"}} {}\n",
+            self.ptm_failed_vsp_unresolvable()
+        ));
+        output.push_str(&format!(
+            "uniprot_etl_ptm_failures_total{{failure_type=\"isoform_oob\"}} {}\n",
+            self.ptm_failed_isoform_oob()
+        ));
+        output.push_str(&format!(
+            "uniprot_etl_ptm_failures_total{{failure_type=\"residue_mismatch\"}} {}\n\n",
+            self.ptm_failed_residue_mismatch()
+        ));
+
+        // Derived gauges
+        let ptm_success_rate = if ptm_attempted > 0 {
+            ptm_mapped as f64 / ptm_attempted as f64
+        } else {
+            0.0
+        };
+        gauge!(
+            "uniprot_etl_ptm_success_rate",
+            "PTM mapping success rate (0.0-1.0)",
+            format!("{:.4}", ptm_success_rate)
+        );
+
+        let entries_per_sec = if elapsed > 0.0 {
+            entries as f64 / elapsed
+        } else {
+            0.0
+        };
+        gauge!(
+            "uniprot_etl_throughput_entries_per_second",
+            "Current entries/sec throughput",
+            format!("{:.2}", entries_per_sec)
+        );
+
+        let bytes_per_sec = if elapsed > 0.0 {
+            bytes_read as f64 / elapsed
+        } else {
+            0.0
+        };
+        gauge!(
+            "uniprot_etl_throughput_bytes_per_second",
+            "Current bytes/sec read throughput",
+            format!("{:.2}", bytes_per_sec)
+        );
+
+        gauge!(
+            "uniprot_etl_uptime_seconds",
+            "Total runtime in seconds",
+            format!("{:.2}", elapsed)
+        );
+
+        gauge!(
+            "uniprot_etl_pipeline_backpressure_ratio",
+            "Channel backpressure ratio (0.0-1.0)",
+            format!("{:.4}", backpressure)
+        );
+
+        output
+    }
+
     #[allow(dead_code)]
     pub fn print_summary(&self) {
         let elapsed = self.elapsed_secs();

@@ -22,7 +22,7 @@ bibliography: paper.bib
 
 # Summary
 
-UniProt ETL is a high-throughput, streaming engine written in Rust that converts UniProtKB XML data dumps into Apache Parquet format. Designed to handle the full scale of UniProtKB—including both the ~570,000 manually curated Swiss-Prot entries and TrEMBL's 250+ million automated sequences—the software combines event-driven XML parsing with columnar storage to achieve constant memory usage regardless of input size. On commodity hardware, UniProt ETL processes data at ~24,800 entries/second with ~60× compression while preserving the full biological hierarchy of protein annotations, isoform sequences, and post-translational modification sites.
+UniProt ETL is a high-throughput, streaming engine written in Rust [@rust] that converts UniProtKB XML data dumps into Apache Parquet [@parquet] format. Designed to handle the full scale of UniProtKB—including both the ~570,000 manually curated Swiss-Prot entries and TrEMBL's 250+ million automated sequences—the software combines event-driven XML parsing with columnar storage to achieve constant memory usage regardless of input size. On commodity hardware, UniProt ETL processes data at ~24,800 entries/second with ~60× compression while preserving the full biological hierarchy of protein annotations, isoform sequences, and post-translational modification sites.
 
 # Statement of Need
 
@@ -40,7 +40,7 @@ However, working with UniProt's canonical data distribution format—XML dumps e
 
 Existing solutions include BioPython's `SeqIO` module [@biopython], which provides convenient parsing but lacks streaming capability and Parquet output; custom pandas-based pipelines, which inherit Python's memory and performance limitations; and vendor-specific database imports, which create lock-in and reproducibility concerns.
 
-UniProt ETL addresses these gaps by providing a single, open-source tool that processes UniProt XML with constant memory usage (<730 MB peak), preserves biological fidelity through rigorous isoform coordinate mapping, and outputs industry-standard Parquet files queryable with DuckDB, Polars, Apache Spark, or pandas.
+UniProt ETL addresses these gaps by providing a single, open-source tool that processes UniProt XML with constant memory usage (<730 MB peak), preserves biological fidelity through rigorous isoform coordinate mapping, and outputs industry-standard Parquet files queryable with DuckDB [@duckdb], Polars, Apache Spark, or pandas.
 
 # Software Architecture
 
@@ -52,7 +52,7 @@ UniProt ETL employs a producer-consumer architecture built on three core innovat
 
 **Bounded-channel I/O decoupling**: The parsing thread (producer) sends `RecordBatch` structures through a bounded `crossbeam` channel to a dedicated writer thread (consumer). This design prevents blocking on Parquet I/O operations while providing natural backpressure to avoid memory exhaustion.
 
-**Columnar output with nested schemas**: The Arrow/Parquet output preserves UniProt's hierarchical structure using `LIST` and `STRUCT` types. Features, isoforms, PTM sites, and evidence codes are stored as nested arrays, enabling efficient columnar queries without denormalization.
+**Columnar output with nested schemas**: The Arrow [@arrow]/Parquet output preserves UniProt's hierarchical structure using `LIST` and `STRUCT` types. Features, isoforms, PTM sites, and evidence codes are stored as nested arrays, enabling efficient columnar queries without denormalization.
 
 ## Isoform Coordinate Mapping
 

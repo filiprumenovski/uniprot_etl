@@ -17,3 +17,10 @@
 /runs/
 gui/frontend/node_modules/
 .DS_Store
+
+# Root level data files (safety check)
+*.parquet
+*.xml
+*.xml.gz
+*.fasta
+*.fasta.gz

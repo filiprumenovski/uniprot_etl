@@ -54,7 +54,15 @@ fn parses_single_entry_into_record_batch() -> Result<()> {
 
     let mut sidecar = HashMap::new();
     sidecar.insert("Q9TEST-1".to_string(), "MTAK".to_string());
-    parse_entries(reader, tx, &metrics, 16, Some(Arc::new(sidecar)))?;
+    parse_entries(
+        reader,
+        tx,
+        &metrics,
+        16,
+        Some(Arc::new(sidecar)),
+        None,
+        None,
+    )?;
 
     let batches: Vec<_> = rx.iter().collect();
     assert_eq!(batches.len(), 1);
@@ -229,7 +237,15 @@ fn captures_subunit_comment_text_into_subunits_column() -> Result<()> {
 
     let mut sidecar = HashMap::new();
     sidecar.insert("Q9SUB-1".to_string(), "MTAK".to_string());
-    parse_entries(reader, tx, &metrics, 16, Some(Arc::new(sidecar)))?;
+    parse_entries(
+        reader,
+        tx,
+        &metrics,
+        16,
+        Some(Arc::new(sidecar)),
+        None,
+        None,
+    )?;
 
     let batches: Vec<_> = rx.iter().collect();
     assert_eq!(batches.len(), 1);
@@ -308,7 +324,7 @@ fn parses_multiple_entries_and_handles_missing_evidence() -> Result<()> {
     let metrics = Metrics::new();
     let (tx, rx) = unbounded();
 
-    parse_entries(reader, tx, &metrics, 16, None)?;
+    parse_entries(reader, tx, &metrics, 16, None, None, None)?;
 
     let batches: Vec<_> = rx.iter().collect();
     assert_eq!(batches.len(), 1);

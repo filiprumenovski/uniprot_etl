@@ -102,7 +102,7 @@ fn main() -> Result<()> {
                 let feature_type = feature_types.value(feature_idx);
 
                 // Focus on modification types
-                if feature_type == "modified residue" 
+                if feature_type == "modified residue"
                     || feature_type == "lipidation"
                     || feature_type == "glycosylation site"
                     || feature_type == "cross-link"
@@ -113,10 +113,10 @@ fn main() -> Result<()> {
                     }
 
                     let description = descriptions.value(feature_idx);
-                    
+
                     // Extract the modification type from description
                     let mod_type = extract_modification_type(description);
-                    
+
                     let stats = ptm_stats.entry(mod_type).or_insert_with(PtmStats::new);
                     stats.total += 1;
 
@@ -128,7 +128,9 @@ fn main() -> Result<()> {
                     };
 
                     let evidence_lower = evidence.to_lowercase();
-                    if evidence_lower.contains("eco:0000269") || evidence_lower.contains("eco:0007744") {
+                    if evidence_lower.contains("eco:0000269")
+                        || evidence_lower.contains("eco:0007744")
+                    {
                         stats.experimental += 1;
                     } else if evidence == "Unknown" {
                         stats.unknown += 1;
@@ -161,9 +163,12 @@ fn main() -> Result<()> {
     // Yang (Light) - High experimental evidence
     println!("☯ YANG (Light) - Highly Experimentally Validated PTMs ☯");
     println!("───────────────────────────────────────────────────────────────────────");
-    println!("{:35} {:>8} {:>10} {:>10}", "Modification Type", "Total", "Exptl %", "Non-Exp %");
+    println!(
+        "{:35} {:>8} {:>10} {:>10}",
+        "Modification Type", "Total", "Exptl %", "Non-Exp %"
+    );
     println!("───────────────────────────────────────────────────────────────────────");
-    
+
     let top_experimental = filtered_stats.iter().take(10);
     for (mod_type, stats) in top_experimental {
         let exp_pct = stats.experimental_ratio() * 100.0;
@@ -182,9 +187,12 @@ fn main() -> Result<()> {
     // Yin (Dark) - Low experimental evidence
     println!("☯ YIN (Dark) - Computationally Predicted PTMs ☯");
     println!("───────────────────────────────────────────────────────────────────────");
-    println!("{:35} {:>8} {:>10} {:>10}", "Modification Type", "Total", "Exptl %", "Non-Exp %");
+    println!(
+        "{:35} {:>8} {:>10} {:>10}",
+        "Modification Type", "Total", "Exptl %", "Non-Exp %"
+    );
     println!("───────────────────────────────────────────────────────────────────────");
-    
+
     let bottom_experimental = filtered_stats.iter().rev().take(10).rev();
     for (mod_type, stats) in bottom_experimental {
         let exp_pct = stats.experimental_ratio() * 100.0;
@@ -199,23 +207,29 @@ fn main() -> Result<()> {
     }
 
     println!("═══════════════════════════════════════════════════════════════════════");
-    
+
     // Summary statistics
     let total_sites: usize = filtered_stats.iter().map(|(_, s)| s.total).sum();
     let total_experimental: usize = filtered_stats.iter().map(|(_, s)| s.experimental).sum();
     let overall_exp_ratio = total_experimental as f64 / total_sites as f64 * 100.0;
-    
+
     println!("\nOverall Statistics:");
     println!("  Total PTM sites analyzed: {}", total_sites);
-    println!("  Total experimentally validated: {} ({:.1}%)", total_experimental, overall_exp_ratio);
-    println!("  Number of PTM types (≥100 sites): {}", filtered_stats.len());
+    println!(
+        "  Total experimentally validated: {} ({:.1}%)",
+        total_experimental, overall_exp_ratio
+    );
+    println!(
+        "  Number of PTM types (≥100 sites): {}",
+        filtered_stats.len()
+    );
 
     Ok(())
 }
 
 fn extract_modification_type(description: &str) -> String {
     let desc_lower = description.to_lowercase();
-    
+
     // Common PTM patterns
     if desc_lower.contains("phospho") {
         if desc_lower.contains("serine") {

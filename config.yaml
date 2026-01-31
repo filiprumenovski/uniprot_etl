@@ -21,3 +21,7 @@ logging:
 runs:
   runs_dir: "runs"
   keep_runs: 10
+
+observability:
+  enable_metrics_server: true
+  metrics_bind_address: "0.0.0.0:9090"

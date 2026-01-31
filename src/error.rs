@@ -26,6 +26,9 @@ pub enum EtlError {
 
     #[error("Invalid XML attribute: {0}")]
     InvalidAttribute(String),
+
+    #[error("Cancelled by user")]
+    Cancelled,
 }
 
 pub type Result<T> = std::result::Result<T, EtlError>;

@@ -1,10 +1,12 @@
 use arrow::record_batch::RecordBatch;
 use crossbeam_channel::Sender;
+use std::sync::Arc;
 
 use crate::error::{EtlError, Result};
 use crate::metrics::MetricsCollector;
 use crate::pipeline::builders::EntryBuilders;
 use crate::pipeline::transformer::TransformedRow;
+use crate::sampler::ChannelStats;
 
 #[allow(dead_code)]
 pub const DEFAULT_BATCH_SIZE: usize = 10_000;
@@ -15,6 +17,7 @@ pub struct Batcher<M: MetricsCollector> {
     batch_size: usize,
     sender: Sender<RecordBatch>,
     metrics: M,
+    channel_stats: Option<Arc<ChannelStats>>,
 }
 
 impl<M: MetricsCollector> Batcher<M> {
@@ -22,12 +25,14 @@ impl<M: MetricsCollector> Batcher<M> {
         sender: Sender<RecordBatch>,
         metrics: M,
         batch_size: usize,
+        channel_stats: Option<Arc<ChannelStats>>,
     ) -> Self {
         Self {
             builders: EntryBuilders::new(batch_size),
             batch_size,
             sender,
             metrics,
+            channel_stats,
         }
     }
 
@@ -52,6 +57,9 @@ impl<M: MetricsCollector> Batcher<M> {
         let batch = self.builders.finish_batch()?;
         self.sender.send(batch).map_err(|_| EtlError::ChannelSend)?;
         self.metrics.inc_batches();
+        if let Some(stats) = &self.channel_stats {
+            stats.record_fullness(self.sender.len());
+        }
 
         Ok(())
     }

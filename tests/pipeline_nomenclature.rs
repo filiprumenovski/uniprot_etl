@@ -12,8 +12,8 @@ use uniprot_etl::pipeline::parser::parse_entries;
 
 #[test]
 fn parses_nomenclature_and_structures_from_sample() -> Result<()> {
-        // Minimal inline sample XML (kept in-test so it doesn't depend on repo data files)
-        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+    // Minimal inline sample XML (kept in-test so it doesn't depend on repo data files)
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <uniprot>
     <entry>
         <accession>P04637</accession>
@@ -51,7 +51,15 @@ fn parses_nomenclature_and_structures_from_sample() -> Result<()> {
     let mut sidecar = HashMap::new();
     // sample_uniprot.xml contains one isoform ref: P04637-1
     sidecar.insert("P04637-1".to_string(), "MEEPQSDPSV".to_string());
-    parse_entries(reader, tx, &metrics, 16, Some(Arc::new(sidecar)))?;
+    parse_entries(
+        reader,
+        tx,
+        &metrics,
+        16,
+        Some(Arc::new(sidecar)),
+        None,
+        None,
+    )?;
 
     let batches: Vec<_> = rx.iter().collect();
     assert_eq!(batches.len(), 1);

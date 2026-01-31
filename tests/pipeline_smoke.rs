@@ -35,7 +35,7 @@ fn parses_real_uniprot_file_smoke() -> Result<()> {
 
     let reader = create_xml_reader(&path, &settings, &metrics)?;
     // Smoke test doesn't use a sidecar; real runs should supply one when isoforms exist.
-    parse_entries(reader, tx, &metrics, 5_000, None)?;
+    parse_entries(reader, tx, &metrics, 5_000, None, None, None)?;
 
     let total_rows = consumer.join().expect("consumer thread panicked");
     assert!(total_rows > 0, "no rows parsed from real file");

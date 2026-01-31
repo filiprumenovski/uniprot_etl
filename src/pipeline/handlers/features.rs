@@ -98,22 +98,26 @@ fn propagate_common_to_context(scratch: &mut EntryScratch) {
         FeatureContext::ActiveSite => {
             scratch.current_active_site.id = scratch.current_feature.id.clone();
             scratch.current_active_site.description = scratch.current_feature.description.clone();
-            scratch.current_active_site.evidence_keys = scratch.current_feature.evidence_keys.clone();
+            scratch.current_active_site.evidence_keys =
+                scratch.current_feature.evidence_keys.clone();
         }
         FeatureContext::BindingSite => {
             scratch.current_binding_site.id = scratch.current_feature.id.clone();
             scratch.current_binding_site.description = scratch.current_feature.description.clone();
-            scratch.current_binding_site.evidence_keys = scratch.current_feature.evidence_keys.clone();
+            scratch.current_binding_site.evidence_keys =
+                scratch.current_feature.evidence_keys.clone();
         }
         FeatureContext::MetalCoordination => {
             scratch.current_metal_coordination.id = scratch.current_feature.id.clone();
-            scratch.current_metal_coordination.description = scratch.current_feature.description.clone();
+            scratch.current_metal_coordination.description =
+                scratch.current_feature.description.clone();
             scratch.current_metal_coordination.evidence_keys =
                 scratch.current_feature.evidence_keys.clone();
         }
         FeatureContext::Mutagenesis => {
             scratch.current_mutagenesis_site.id = scratch.current_feature.id.clone();
-            scratch.current_mutagenesis_site.description = scratch.current_feature.description.clone();
+            scratch.current_mutagenesis_site.description =
+                scratch.current_feature.description.clone();
             scratch.current_mutagenesis_site.evidence_keys =
                 scratch.current_feature.evidence_keys.clone();
         }
@@ -124,7 +128,8 @@ fn propagate_common_to_context(scratch: &mut EntryScratch) {
         }
         FeatureContext::NaturalVariant => {
             scratch.current_natural_variant.id = scratch.current_feature.id.clone();
-            scratch.current_natural_variant.description = scratch.current_feature.description.clone();
+            scratch.current_natural_variant.description =
+                scratch.current_feature.description.clone();
             scratch.current_natural_variant.evidence_keys =
                 scratch.current_feature.evidence_keys.clone();
         }

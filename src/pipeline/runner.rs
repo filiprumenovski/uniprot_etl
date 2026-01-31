@@ -9,13 +9,13 @@ use crossbeam_channel::bounded;
 use glob::glob;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
 
 use crate::config::Settings;
 use crate::fasta::load_fasta_map;
-use crate::metrics::{LocalMetricsAdapter, Metrics, MetricsCollector};
+use crate::metrics::{Metrics, MetricsCollector};
 use crate::pipeline::parser::parse_entries;
 use crate::pipeline::reader::create_xml_reader;
 use crate::sampler::ChannelStats;
@@ -36,6 +36,7 @@ use crate::writer::parquet::write_batches;
 ///     settings,
 ///     metrics: metrics.clone(),
 ///     channel_stats: Some(channel_stats),
+///     cancel_flag: None,
 /// };
 ///
 /// run_pipeline(&args)?;
@@ -50,6 +51,9 @@ pub struct PipelineArgs {
     /// Optional: Channel stats for single-file mode backpressure tracking
     /// (In swarm mode, this tracks a dummy channel since per-file channels aren't monitored)
     pub channel_stats: Option<Arc<ChannelStats>>,
+
+    /// Optional cancellation flag for cooperative shutdown.
+    pub cancel_flag: Option<Arc<AtomicBool>>,
 }
 
 /// Run the ETL pipeline in the appropriate mode (single-file or swarm).
@@ -99,6 +103,8 @@ fn run_single_file_mode(args: &PipelineArgs) -> Result<()> {
         &args.settings,
         &args.metrics,
         sidecar_fasta,
+        args.channel_stats.clone(),
+        args.cancel_flag.as_deref(),
     )
 }
 
@@ -127,13 +133,23 @@ fn run_swarm_mode(args: &PipelineArgs) -> Result<()> {
         ));
     }
 
-    eprintln!("[INFO] Swarm mode: found {} XML files to process", files.len());
+    eprintln!(
+        "[INFO] Swarm mode: found {} XML files to process",
+        files.len()
+    );
 
     // Track failures across parallel execution
     let failure_count = Arc::new(AtomicUsize::new(0));
 
     // Process files in parallel using rayon
+    let cancel_flag = args.cancel_flag.as_deref();
+
     files.par_iter().for_each(|input_path| {
+        if let Some(flag) = cancel_flag {
+            if flag.load(Ordering::Relaxed) {
+                return;
+            }
+        }
         let output_path = match derive_output_path(input_path, output_dir) {
             Ok(p) => p,
             Err(e) => {
@@ -153,16 +169,16 @@ fn run_swarm_mode(args: &PipelineArgs) -> Result<()> {
             output_path.display()
         );
 
-        // Create thread-local metrics (zero cross-thread contention)
-        // The Mutex is uncontended because each worker operates on its own LocalMetricsAdapter
-        let local_metrics = LocalMetricsAdapter::new();
-
+        // Use global atomic metrics directly for real-time Grafana updates
+        // (atomic operations are lock-free and scale well across threads)
         if let Err(e) = process_single_file(
             input_path,
             &output_path,
             &args.settings,
-            &local_metrics,
+            &args.metrics, // Global atomic metrics for real-time visibility
             sidecar_fasta.clone(),
+            args.channel_stats.clone(),
+            cancel_flag,
         ) {
             eprintln!(
                 "[ERROR] Failed to process {}: {:#}",
@@ -171,9 +187,6 @@ fn run_swarm_mode(args: &PipelineArgs) -> Result<()> {
             );
             failure_count.fetch_add(1, Ordering::Relaxed);
         }
-
-        // Merge local metrics into global (1 atomic op per field)
-        local_metrics.merge_into(&args.metrics);
     });
 
     let failures = failure_count.load(Ordering::Relaxed);
@@ -205,6 +218,8 @@ fn process_single_file<M: MetricsCollector>(
     settings: &Settings,
     metrics: &M,
     sidecar_fasta: Option<Arc<HashMap<String, String>>>,
+    channel_stats: Option<Arc<ChannelStats>>,
+    cancel_flag: Option<&AtomicBool>,
 ) -> Result<()> {
     // Create bounded channel for this file (isolated from other files)
     let (tx, rx) = bounded(settings.performance.channel_capacity);
@@ -227,6 +242,8 @@ fn process_single_file<M: MetricsCollector>(
         metrics,
         settings.performance.batch_size,
         sidecar_fasta,
+        channel_stats,
+        cancel_flag,
     );
 
     // Wait for writer to finish

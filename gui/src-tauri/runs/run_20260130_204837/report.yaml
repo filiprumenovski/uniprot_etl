@@ -1,0 +1,40 @@
+run_id: run_20260130_204837
+timestamp: 2026-01-30T20:48:37.979592Z
+duration_secs: 6.034787375
+status: Error
+message: Channel send error
+environment:
+  os: Darwin
+  os_version: '26.2'
+  cpu_model: Apple M4
+  cpu_cores: 10
+  total_memory_gb: 16.0
+performance:
+  entries_parsed: 10000
+  entries_per_sec: 1657.0592099775513
+  batches_written: 0
+  features_extracted: 83203
+  isoforms_extracted: 2
+  ptm_attempted: 1172
+  ptm_mapped: 1172
+  ptm_failed: 0
+  ptm_failed_canonical_oob: 0
+  ptm_failed_vsp_deletion: 0
+  ptm_failed_mapper_oob: 0
+  ptm_failed_vsp_unresolvable: 0
+  ptm_failed_isoform_oob: 0
+  ptm_failed_residue_mismatch: 0
+  bytes_read: 126053068
+  bytes_written: 0
+  bytes_per_sec: 20887739.727532655
+resources:
+  peak_rss_mb: 162.8125
+  peak_cpu_percent: 102.60241
+  avg_channel_fullness_percent: 0.0
+bottleneck:
+  diagnosis: Parser Bottleneck
+  confidence: 0.9
+  recommendations:
+  - Parser is the limiting factor
+  - Consider increasing buffer_size for better read performance
+  - XML parsing is CPU-bound

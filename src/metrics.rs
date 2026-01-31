@@ -25,6 +25,7 @@ pub trait MetricsCollector: Clone + Send + Sync + 'static {
 /// Thread-local metrics for zero-contention counting in parallel workloads.
 /// Use this in worker threads, then merge into global Metrics at the end.
 #[derive(Default)]
+#[allow(dead_code)]
 pub struct LocalMetrics {
     entries_parsed: u64,
     batches_written: u64,
@@ -43,6 +44,7 @@ pub struct LocalMetrics {
     ptm_failed_residue_mismatch: u64,
 }
 
+#[allow(dead_code)]
 impl LocalMetrics {
     pub fn new() -> Self {
         Self::default()
@@ -111,49 +113,94 @@ impl LocalMetrics {
     /// Merge this local metrics into a global Metrics instance (one atomic op per field)
     pub fn merge_into(&self, global: &Metrics) {
         if self.entries_parsed > 0 {
-            global.inner.entries_parsed.fetch_add(self.entries_parsed, Ordering::Relaxed);
+            global
+                .inner
+                .entries_parsed
+                .fetch_add(self.entries_parsed, Ordering::Relaxed);
         }
         if self.batches_written > 0 {
-            global.inner.batches_written.fetch_add(self.batches_written, Ordering::Relaxed);
+            global
+                .inner
+                .batches_written
+                .fetch_add(self.batches_written, Ordering::Relaxed);
         }
         if self.bytes_read > 0 {
-            global.inner.bytes_read.fetch_add(self.bytes_read, Ordering::Relaxed);
+            global
+                .inner
+                .bytes_read
+                .fetch_add(self.bytes_read, Ordering::Relaxed);
         }
         if self.bytes_written > 0 {
-            global.inner.bytes_written.fetch_add(self.bytes_written, Ordering::Relaxed);
+            global
+                .inner
+                .bytes_written
+                .fetch_add(self.bytes_written, Ordering::Relaxed);
         }
         if self.features_count > 0 {
-            global.inner.features_count.fetch_add(self.features_count, Ordering::Relaxed);
+            global
+                .inner
+                .features_count
+                .fetch_add(self.features_count, Ordering::Relaxed);
         }
         if self.isoforms_count > 0 {
-            global.inner.isoforms_count.fetch_add(self.isoforms_count, Ordering::Relaxed);
+            global
+                .inner
+                .isoforms_count
+                .fetch_add(self.isoforms_count, Ordering::Relaxed);
         }
         if self.ptm_attempted > 0 {
-            global.inner.ptm_attempted.fetch_add(self.ptm_attempted, Ordering::Relaxed);
+            global
+                .inner
+                .ptm_attempted
+                .fetch_add(self.ptm_attempted, Ordering::Relaxed);
         }
         if self.ptm_mapped > 0 {
-            global.inner.ptm_mapped.fetch_add(self.ptm_mapped, Ordering::Relaxed);
+            global
+                .inner
+                .ptm_mapped
+                .fetch_add(self.ptm_mapped, Ordering::Relaxed);
         }
         if self.ptm_failed > 0 {
-            global.inner.ptm_failed.fetch_add(self.ptm_failed, Ordering::Relaxed);
+            global
+                .inner
+                .ptm_failed
+                .fetch_add(self.ptm_failed, Ordering::Relaxed);
         }
         if self.ptm_failed_canonical_oob > 0 {
-            global.inner.ptm_failures.add_canonical_oob(self.ptm_failed_canonical_oob);
+            global
+                .inner
+                .ptm_failures
+                .add_canonical_oob(self.ptm_failed_canonical_oob);
         }
         if self.ptm_failed_vsp_deletion > 0 {
-            global.inner.ptm_failures.add_vsp_deletion(self.ptm_failed_vsp_deletion);
+            global
+                .inner
+                .ptm_failures
+                .add_vsp_deletion(self.ptm_failed_vsp_deletion);
         }
         if self.ptm_failed_mapper_oob > 0 {
-            global.inner.ptm_failures.add_mapper_oob(self.ptm_failed_mapper_oob);
+            global
+                .inner
+                .ptm_failures
+                .add_mapper_oob(self.ptm_failed_mapper_oob);
         }
         if self.ptm_failed_vsp_unresolvable > 0 {
-            global.inner.ptm_failures.add_vsp_unresolvable(self.ptm_failed_vsp_unresolvable);
+            global
+                .inner
+                .ptm_failures
+                .add_vsp_unresolvable(self.ptm_failed_vsp_unresolvable);
         }
         if self.ptm_failed_isoform_oob > 0 {
-            global.inner.ptm_failures.add_isoform_oob(self.ptm_failed_isoform_oob);
+            global
+                .inner
+                .ptm_failures
+                .add_isoform_oob(self.ptm_failed_isoform_oob);
         }
         if self.ptm_failed_residue_mismatch > 0 {
-            global.inner.ptm_failures.add_residue_mismatch(self.ptm_failed_residue_mismatch);
+            global
+                .inner
+                .ptm_failures
+                .add_residue_mismatch(self.ptm_failed_residue_mismatch);
         }
     }
 }
@@ -163,10 +210,12 @@ impl LocalMetrics {
 /// The Mutex ensures thread-safety, but in practice each file processing is single-threaded,
 /// so there's no actual contention (the Mutex is just to satisfy the borrow checker).
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct LocalMetricsAdapter {
     inner: Arc<Mutex<LocalMetrics>>,
 }
 
+#[allow(dead_code)]
 impl LocalMetricsAdapter {
     pub fn new() -> Self {
         Self {
@@ -218,11 +267,17 @@ impl MetricsCollector for LocalMetricsAdapter {
     }
 
     fn add_ptm_failed_canonical_oob(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_failed_canonical_oob(count);
+        self.inner
+            .lock()
+            .unwrap()
+            .add_ptm_failed_canonical_oob(count);
     }
 
     fn add_ptm_failed_vsp_deletion(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_failed_vsp_deletion(count);
+        self.inner
+            .lock()
+            .unwrap()
+            .add_ptm_failed_vsp_deletion(count);
     }
 
     fn add_ptm_failed_mapper_oob(&self, count: u64) {
@@ -230,7 +285,10 @@ impl MetricsCollector for LocalMetricsAdapter {
     }
 
     fn add_ptm_failed_vsp_unresolvable(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_failed_vsp_unresolvable(count);
+        self.inner
+            .lock()
+            .unwrap()
+            .add_ptm_failed_vsp_unresolvable(count);
     }
 
     fn add_ptm_failed_isoform_oob(&self, count: u64) {
@@ -238,7 +296,10 @@ impl MetricsCollector for LocalMetricsAdapter {
     }
 
     fn add_ptm_failed_residue_mismatch(&self, count: u64) {
-        self.inner.lock().unwrap().add_ptm_failed_residue_mismatch(count);
+        self.inner
+            .lock()
+            .unwrap()
+            .add_ptm_failed_residue_mismatch(count);
     }
 }
 
@@ -350,66 +411,81 @@ impl Metrics {
         }
     }
 
+    #[allow(dead_code)]
     pub fn inc_entries(&self) {
         self.inner.entries_parsed.fetch_add(1, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     pub fn inc_batches(&self) {
         self.inner.batches_written.fetch_add(1, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     pub fn add_bytes_read(&self, bytes: u64) {
         self.inner.bytes_read.fetch_add(bytes, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     pub fn add_bytes_written(&self, bytes: u64) {
         self.inner.bytes_written.fetch_add(bytes, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     pub fn add_features(&self, count: u64) {
         self.inner
             .features_count
             .fetch_add(count, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     pub fn add_isoforms(&self, count: u64) {
         self.inner
             .isoforms_count
             .fetch_add(count, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     pub fn add_ptm_attempted(&self, count: u64) {
         self.inner.ptm_attempted.fetch_add(count, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     pub fn add_ptm_mapped(&self, count: u64) {
         self.inner.ptm_mapped.fetch_add(count, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     pub fn add_ptm_failed(&self, count: u64) {
         self.inner.ptm_failed.fetch_add(count, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     pub fn add_ptm_failed_canonical_oob(&self, count: u64) {
         self.inner.ptm_failures.add_canonical_oob(count);
     }
 
+    #[allow(dead_code)]
     pub fn add_ptm_failed_vsp_deletion(&self, count: u64) {
         self.inner.ptm_failures.add_vsp_deletion(count);
     }
 
+    #[allow(dead_code)]
     pub fn add_ptm_failed_mapper_oob(&self, count: u64) {
         self.inner.ptm_failures.add_mapper_oob(count);
     }
 
+    #[allow(dead_code)]
     pub fn add_ptm_failed_vsp_unresolvable(&self, count: u64) {
         self.inner.ptm_failures.add_vsp_unresolvable(count);
     }
 
+    #[allow(dead_code)]
     pub fn add_ptm_failed_isoform_oob(&self, count: u64) {
         self.inner.ptm_failures.add_isoform_oob(count);
     }
 
+    #[allow(dead_code)]
     pub fn add_ptm_failed_residue_mismatch(&self, count: u64) {
         self.inner.ptm_failures.add_residue_mismatch(count);
     }
@@ -609,8 +685,8 @@ impl Metrics {
             0.0
         };
         gauge!(
-            "uniprot_etl_ptm_success_rate",
-            "PTM mapping success rate (0.0-1.0)",
+            "uniprot_etl_ptm_success_ratio",
+            "PTM mapping success ratio (0.0-1.0)",
             format!("{:.4}", ptm_success_rate)
         );
 
@@ -620,8 +696,8 @@ impl Metrics {
             0.0
         };
         gauge!(
-            "uniprot_etl_throughput_entries_per_second",
-            "Current entries/sec throughput",
+            "uniprot_etl_parse_rate_entries_per_second",
+            "Current entries/sec parsing rate",
             format!("{:.2}", entries_per_sec)
         );
 
@@ -631,8 +707,8 @@ impl Metrics {
             0.0
         };
         gauge!(
-            "uniprot_etl_throughput_bytes_per_second",
-            "Current bytes/sec read throughput",
+            "uniprot_etl_read_rate_bytes_per_second",
+            "Current bytes/sec read rate",
             format!("{:.2}", bytes_per_sec)
         );
 
@@ -719,11 +795,15 @@ impl MetricsCollector for Metrics {
     }
 
     fn add_features(&self, count: u64) {
-        self.inner.features_count.fetch_add(count, Ordering::Relaxed);
+        self.inner
+            .features_count
+            .fetch_add(count, Ordering::Relaxed);
     }
 
     fn add_isoforms(&self, count: u64) {
-        self.inner.isoforms_count.fetch_add(count, Ordering::Relaxed);
+        self.inner
+            .isoforms_count
+            .fetch_add(count, Ordering::Relaxed);
     }
 
     fn add_ptm_attempted(&self, count: u64) {

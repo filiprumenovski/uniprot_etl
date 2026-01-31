@@ -1,9 +1,15 @@
 set shell := ["bash", "-cu"]
 set dotenv-load := true
 
+bin := "uniprot_etl"
+config := "config.yaml"
+runs_dir := "runs"
+default_output := "data/parquet"
+
 default:
     @just --list
 
+# === Core ===
 fmt:
     cargo fmt
 
@@ -13,7 +19,7 @@ lint:
 test:
     cargo test --all
 
-dev-check:
+check:
     just fmt
     just lint
     just test
@@ -21,100 +27,66 @@ dev-check:
 bench:
     cargo bench
 
+# === Run ===
 run input_path:
-    cargo run --release --bin uniprot_etl -- --config config.yaml --input "{{input_path}}"
+    cargo run --release --bin {{bin}} -- --config {{config}} --input "{{input_path}}"
 
 run-debug input_path:
-    cargo run --bin uniprot_etl -- --config config.yaml --input "{{input_path}}"
+    cargo run --bin {{bin}} -- --config {{config}} --input "{{input_path}}"
 
-# Swarm mode: process a directory of XML files in parallel
-run-swarm input_dir output_dir="data/parquet":
-    cargo run --release --bin uniprot_etl -- --config config.yaml --input "{{input_dir}}" --output "{{output_dir}}"
+run-swarm input_dir output_dir=default_output:
+    cargo run --release --bin {{bin}} -- --config {{config}} --input "{{input_dir}}" --output "{{output_dir}}"
 
-clean-data flags="--force":
+# === Data ===
+data-clean flags="--force":
     bash scripts/clean_data.sh {{flags}}
 
-clean-data-dry:
+data-clean-dry:
     bash scripts/clean_data.sh --dry-run
 
-fetch-data url out_file="" flags="":
+data-fetch url out_file="" flags="":
     UNIPROT_URL={{url}} OUT_FILE={{out_file}} bash scripts/fetch_uniprot.sh {{flags}}
 
-profile-flamegraph bench="flamegraph_benchmark" run_id="" runs_dir="runs" flags="":
+# === Profiling ===
+profile-flamegraph bench="flamegraph_benchmark" run_id="" runs_dir=runs_dir flags="":
     BENCH_TARGET={{bench}} bash scripts/profile_flamegraph.sh --runs-dir {{runs_dir}} {{if run_id != "" { "--run-id " + run_id } else { "" }}} {{flags}}
 
-profile-pipeline run_id="" runs_dir="runs" flags="":
+profile-pipeline run_id="" runs_dir=runs_dir flags="":
     bash scripts/profile_pipeline_flamegraph.sh --runs-dir {{runs_dir}} {{if run_id != "" { "--run-id " + run_id } else { "" }}} {{flags}}
 
-# === GUI Commands ===
-
-# Check GUI prerequisites (node, npm, cargo-tauri)
+# === GUI ===
 gui-check:
-    #!/usr/bin/env bash
-    set -e
-    echo "Checking GUI prerequisites..."
-    if ! command -v node &> /dev/null; then
-        echo "❌ Node.js not found. Install with: brew install node"
-        exit 1
-    fi
-    echo "✓ Node.js $(node --version)"
-    if ! command -v npm &> /dev/null; then
-        echo "❌ npm not found. Install with: brew install node"
-        exit 1
-    fi
-    echo "✓ npm $(npm --version)"
-    if ! cargo tauri --version &> /dev/null; then
-        echo "⚠ cargo-tauri not found. Installing..."
-        cargo install tauri-cli
-    fi
-    echo "✓ cargo-tauri $(cargo tauri --version)"
-    echo "All prerequisites satisfied!"
+    @command -v node >/dev/null || (echo "Node.js missing. Install: brew install node"; exit 1)
+    @command -v npm >/dev/null || (echo "npm missing. Install: brew install node"; exit 1)
+    @cargo tauri --version >/dev/null 2>&1 || (echo "cargo-tauri missing. Install: cargo install tauri-cli"; exit 1)
+    @echo "GUI prerequisites OK"
 
-# Install Node.js via Homebrew (macOS)
 gui-install-node:
     brew install node
 
-# Install frontend dependencies
-gui-install: gui-check
+gui-setup:
     cd gui/frontend && npm install
 
-# Run the Tauri desktop app in development mode
 gui-dev:
     cd gui/src-tauri && cargo tauri dev
 
-# Build the Tauri desktop app for production
 gui-build:
     cd gui/src-tauri && cargo tauri build
 
-# Run frontend only (for development without Tauri)
 gui-frontend:
     cd gui/frontend && npm run dev
 
-# === Observability Commands ===
+gui-run-release:
+    cd gui/src-tauri && cargo tauri build --no-bundle
+    ./target/release/uniprot-etl-gui
 
-# Run GUI app in release mode with live Grafana dashboard embedded
-gui-with-dashboard:
-    #!/usr/bin/env bash
-    set -e
-    echo "Starting observability stack..."
-    cd observability && docker compose up -d
-    cd ..
-    echo "Waiting for Grafana to be ready..."
-    sleep 3
-    echo "Building and launching GUI with embedded Grafana..."
-    cd gui/src-tauri && cargo tauri dev
+gui-with-dashboard: gui-run-release
 
-# Start Prometheus + Grafana stack
-observability-up:
-    cd observability && docker compose up -d
+gui-full: gui-check gui-setup gui-dev
 
-# Stop observability stack
-observability-down:
-    cd observability && docker compose down
-
-# View observability logs
-observability-logs:
-    cd observability && docker compose logs -f
-
-# Full GUI setup: install deps, start observability, launch app
-gui-full: gui-install observability-up gui-dev
+# === Legacy Aliases ===
+dev-check: check
+clean-data: data-clean
+clean-data-dry: data-clean-dry
+fetch-data: data-fetch
+gui-install: gui-setup

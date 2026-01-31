@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use flate2::read::GzDecoder;
 use glob::glob;
 use std::collections::HashMap;
 use std::fs::File;
@@ -7,13 +8,24 @@ use std::path::{Path, PathBuf};
 
 /// Loads a FASTA file into a map of accession -> sequence.
 ///
+/// Supports both plain `.fasta` and gzipped `.fasta.gz` files.
+///
 /// Header parsing:
 /// - If header is like `>sp|P04637-2|...`, uses `P04637-2`.
 /// - Otherwise uses the first token after `>` up to whitespace.
 pub fn load_fasta_map(path: &Path) -> Result<HashMap<String, String>> {
     let file =
         File::open(path).with_context(|| format!("Failed to open FASTA: {}", path.display()))?;
-    let reader = BufReader::new(file);
+
+    // Detect gzipped files by extension and wrap appropriately
+    let reader: Box<dyn BufRead> = if path
+        .extension()
+        .map_or(false, |ext| ext.eq_ignore_ascii_case("gz"))
+    {
+        Box::new(BufReader::new(GzDecoder::new(file)))
+    } else {
+        Box::new(BufReader::new(file))
+    };
 
     let mut map: HashMap<String, String> = HashMap::new();
 
@@ -70,16 +82,16 @@ pub fn load_fasta_map(path: &Path) -> Result<HashMap<String, String>> {
 pub fn detect_sidecar(input_dir: &Path) -> Result<Option<PathBuf>> {
     // Normalize to directory (handle both dir and file inputs)
     let search_dir = if input_dir.is_file() {
-        input_dir
-            .parent()
-            .ok_or_else(|| anyhow!("Cannot determine parent directory of {}", input_dir.display()))?
+        input_dir.parent().ok_or_else(|| {
+            anyhow!(
+                "Cannot determine parent directory of {}",
+                input_dir.display()
+            )
+        })?
     } else if input_dir.is_dir() {
         input_dir
     } else {
-        return Err(anyhow!(
-            "Path does not exist: {}",
-            input_dir.display()
-        ));
+        return Err(anyhow!("Path does not exist: {}", input_dir.display()));
     };
 
     // Priority 1: varsplic pattern (most specific)
@@ -174,12 +186,7 @@ fn disambiguate_candidates(mut candidates: Vec<PathBuf>, category: &str) -> Opti
     }
 
     // 3. Largest file (likely most complete)
-    candidates.sort_by_key(|p| {
-        std::fs::metadata(p)
-            .ok()
-            .map(|m| m.len())
-            .unwrap_or(0)
-    });
+    candidates.sort_by_key(|p| std::fs::metadata(p).ok().map(|m| m.len()).unwrap_or(0));
     candidates.reverse();
 
     let selected = candidates[0].clone();

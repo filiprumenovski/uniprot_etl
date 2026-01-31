@@ -68,6 +68,8 @@ fn benchmark_pipeline_50k_batch(c: &mut Criterion) {
                 &metrics,
                 black_box(50000), // 50k batch size
                 None,
+                None,
+                None,
             )
             .expect("Failed to parse entries");
 

@@ -1,0 +1,38 @@
+run_id: run_20260131_000831
+timestamp: 2026-01-31T00:08:31.055919Z
+duration_secs: 23.769515375
+status: Success
+environment:
+  os: Darwin
+  os_version: '26.2'
+  cpu_model: Apple M4
+  cpu_cores: 10
+  total_memory_gb: 16.0
+performance:
+  entries_parsed: 589191
+  entries_per_sec: 24787.67407347698
+  batches_written: 64
+  features_extracted: 5612961
+  isoforms_extracted: 69952
+  ptm_attempted: 539915
+  ptm_mapped: 452744
+  ptm_failed: 87171
+  ptm_failed_canonical_oob: 234
+  ptm_failed_vsp_deletion: 13188
+  ptm_failed_mapper_oob: 0
+  ptm_failed_vsp_unresolvable: 3325
+  ptm_failed_isoform_oob: 31362
+  ptm_failed_residue_mismatch: 39062
+  bytes_read: 8816898878
+  bytes_written: 140090013
+  bytes_per_sec: 370933051.80606776
+resources:
+  peak_rss_mb: 729.109375
+  peak_cpu_percent: 5704.5493
+  avg_channel_fullness_percent: 12.5
+bottleneck:
+  diagnosis: Slight Parser Bottleneck
+  confidence: 0.6
+  recommendations:
+  - Parser is slightly slower than writer
+  - Consider increasing buffer_size

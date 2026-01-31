@@ -74,7 +74,10 @@ fn handle_sequence<R: BufRead>(
 ) -> Result<()> {
     let mut inner = Vec::new();
     let sequence_raw = read_text(reader, b"sequence", &mut inner)?;
-    scratch.entry.sequence = sequence_raw.chars().filter(|c| !c.is_whitespace()).collect();
+    scratch.entry.sequence = sequence_raw
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
     Ok(())
 }
 
@@ -219,10 +222,10 @@ fn handle_entry_db_reference(e: &BytesStart<'_>, scratch: &mut EntryScratch) -> 
     if let Some(db) = get_attribute(e, b"type")? {
         if db == "PDB" || db == "AlphaFoldDB" {
             if let Some(id) = get_attribute(e, b"id")? {
-                scratch.entry.structures.push(crate::pipeline::scratch::StructureRef {
-                    database: db,
-                    id,
-                });
+                scratch
+                    .entry
+                    .structures
+                    .push(crate::pipeline::scratch::StructureRef { database: db, id });
             }
         }
     }

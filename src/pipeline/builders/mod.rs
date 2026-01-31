@@ -4,7 +4,8 @@ pub mod ptm;
 use std::sync::Arc;
 
 use arrow::array::{
-    ArrayBuilder, ArrayRef, Float32Builder, Int32Builder, Int8Builder, ListBuilder, StringBuilder, StructBuilder,
+    ArrayBuilder, ArrayRef, Float32Builder, Int32Builder, Int8Builder, ListBuilder, StringBuilder,
+    StructBuilder,
 };
 use arrow::datatypes::{DataType, Field, Fields};
 use arrow::record_batch::RecordBatch;
@@ -62,8 +63,14 @@ impl EntryBuilders {
             ptm_sites: create_ptm_sites_builder(capacity),
             active_sites: FeatureListBuilder::new(create_coordinate_feature_builder(capacity), 0),
             binding_sites: FeatureListBuilder::new(create_coordinate_feature_builder(capacity), 0),
-            metal_coordinations: FeatureListBuilder::new(create_metal_coordination_builder(capacity), 1),
-            mutagenesis_sites: FeatureListBuilder::new(create_coordinate_feature_builder(capacity), 0),
+            metal_coordinations: FeatureListBuilder::new(
+                create_metal_coordination_builder(capacity),
+                1,
+            ),
+            mutagenesis_sites: FeatureListBuilder::new(
+                create_coordinate_feature_builder(capacity),
+                0,
+            ),
             domains: FeatureListBuilder::new(create_domain_builder(capacity), 1),
             natural_variants: FeatureListBuilder::new(create_natural_variant_builder(capacity), 2),
             subunits: create_subunit_builder(capacity),

@@ -282,14 +282,8 @@ mod tests {
         assert_eq!(mapper.map_point_1based(5).unwrap(), 5);
 
         // Interior positions are unresolvable (not snapped to start).
-        assert_eq!(
-            mapper.map_point_1based(6),
-            Err(MapFailure::VspUnresolvable)
-        );
-        assert_eq!(
-            mapper.map_point_1based(7),
-            Err(MapFailure::VspUnresolvable)
-        );
+        assert_eq!(mapper.map_point_1based(6), Err(MapFailure::VspUnresolvable));
+        assert_eq!(mapper.map_point_1based(7), Err(MapFailure::VspUnresolvable));
 
         // Downstream still shifts by delta (-2).
         assert_eq!(mapper.map_point_1based(10).unwrap(), 8);
@@ -307,7 +301,10 @@ mod tests {
         assert_eq!(cleaned_aa_len("ACGT"), 4);
         assert_eq!(cleaned_aa_len(""), 0);
         assert_eq!(cleaned_aa_len("X"), 1);
-        assert_eq!(cleaned_aa_len("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSH"), 51);
+        assert_eq!(
+            cleaned_aa_len("MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSH"),
+            51
+        );
 
         // Mixed case is valid
         assert_eq!(cleaned_aa_len("AcGt"), 4);

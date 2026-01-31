@@ -6,9 +6,13 @@
 !/data/species/README.md
 !/data/tmp/README.md
 !/data/logs/README.md
+!/data/bench/
+!/data/bench/bench_small.xml.gz
+!/data/bench/bench_sidecar.fasta.gz
 
 # Rust target build output
 /target/
 
 # Per-run artifacts (logs, snapshots, reports, profiles)
 /runs/
+gui/frontend/node_modules/

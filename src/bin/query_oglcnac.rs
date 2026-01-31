@@ -87,7 +87,7 @@ fn main() -> Result<()> {
 
                     if !descriptions.is_null(feature_idx) {
                         let description = descriptions.value(feature_idx);
-                        
+
                         // Look for O-GlcNAc or O-linked N-acetylglucosamine
                         if description.to_lowercase().contains("o-glcnac")
                             || description.to_lowercase().contains("n-acetylglucosamine")
@@ -145,9 +145,9 @@ fn main() -> Result<()> {
         // ECO:0000305 = Curator inference
         // ECO:0000312 = Imported information
         // ECO:0000303 = Non-traceable author statement
-        
+
         let evidence_lower = evidence.to_lowercase();
-        
+
         // If it contains ECO:0000269 or ECO:0007744, it has experimental evidence
         if evidence_lower.contains("eco:0000269") || evidence_lower.contains("eco:0007744") {
             experimental += *count;

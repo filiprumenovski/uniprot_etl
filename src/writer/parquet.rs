@@ -23,18 +23,23 @@ pub fn write_batches<M: MetricsCollector>(
     let mut writer = ArrowWriter::try_new(file, schema_ref(), Some(props))?;
 
     for batch in rx {
-        let batch_bytes = batch.get_array_memory_size() as u64;
         writer.write(&batch)?;
-        metrics.add_bytes_written(batch_bytes);
     }
 
     let file_metadata = writer.close()?;
     let row_groups = file_metadata.row_groups;
-    let total_bytes: i64 = row_groups.iter().map(|rg| rg.total_byte_size).sum();
+
+    // Report actual Parquet compressed size (not Arrow in-memory size)
+    let total_compressed_bytes: i64 = row_groups
+        .iter()
+        .filter_map(|rg| rg.total_compressed_size)
+        .sum();
+    metrics.add_bytes_written(total_compressed_bytes as u64);
+
     eprintln!(
-        "Wrote Parquet: {} (size: {:.2} MB)",
+        "Wrote Parquet: {} (compressed size: {:.2} MB)",
         output.display(),
-        total_bytes as f64 / (1024.0 * 1024.0)
+        total_compressed_bytes as f64 / (1024.0 * 1024.0)
     );
 
     Ok(())

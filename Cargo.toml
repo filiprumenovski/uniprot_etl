@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "gui/src-tauri"]
+resolver = "2"
+
 [package]
 name = "uniprot_etl"
 version = "0.1.0"
@@ -44,6 +48,8 @@ chrono = { version = "0.4", features = ["serde"] }
 # Prometheus metrics HTTP server
 axum = "0.7"
 tokio = { version = "1", features = ["rt", "macros", "net", "signal", "sync"] }
+tower-http = { version = "0.6", features = ["cors"] }
+tikv-jemallocator = "0.5"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -64,3 +70,23 @@ opt-level = 3
 
 [profile.bench]
 debug = true
+
+# CRITICAL: Build CPU-intensive crates with optimizations even in dev mode
+# This prevents 10-50x slowdowns when running `cargo tauri dev` or `cargo run`
+[profile.dev.package.uniprot_etl]
+opt-level = 3
+
+[profile.dev.package.quick-xml]
+opt-level = 3
+
+[profile.dev.package.arrow]
+opt-level = 3
+
+[profile.dev.package.parquet]
+opt-level = 3
+
+[profile.dev.package.zstd]
+opt-level = 3
+
+[profile.dev.package.flate2]
+opt-level = 3

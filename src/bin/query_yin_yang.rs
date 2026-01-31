@@ -1,15 +1,13 @@
 use anyhow::{anyhow, Result};
 use arrow::array::{Array, Int32Array, ListArray, RecordBatch, StringArray, StructArray};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 struct SiteInfo {
-    position: i32,
     amino_acid: String,
-    ptm_type: String,
     evidence: String,
 }
 
@@ -28,12 +26,12 @@ fn main() -> Result<()> {
     let mut proteins_with_both = 0;
     let mut proteins_with_phospho_only = 0;
     let mut proteins_with_oglcnac_only = 0;
-    
+
     let mut total_phospho_sites = 0;
     let mut total_oglcnac_sites = 0;
     let mut overlapping_sites = 0;
     let mut proximal_sites = 0; // Within 5 residues
-    
+
     let mut phospho_evidence: HashMap<String, usize> = HashMap::new();
     let mut oglcnac_evidence: HashMap<String, usize> = HashMap::new();
     let mut overlap_examples: Vec<(String, i32, String)> = Vec::new();
@@ -133,28 +131,32 @@ fn main() -> Result<()> {
                 };
 
                 // Check for phosphorylation
-                if feature_type == "modified residue" && 
-                   (desc_lower.contains("phospho") || 
-                    desc_lower.contains("phosphorylated")) {
-                    phospho_sites.insert(position, SiteInfo {
+                if feature_type == "modified residue"
+                    && (desc_lower.contains("phospho") || desc_lower.contains("phosphorylated"))
+                {
+                    phospho_sites.insert(
                         position,
-                        amino_acid: extract_amino_acid(&desc_lower),
-                        ptm_type: "Phosphorylation".to_string(),
-                        evidence: evidence.clone(),
-                    });
+                        SiteInfo {
+                            amino_acid: extract_amino_acid(&desc_lower),
+                            evidence: evidence.clone(),
+                        },
+                    );
                 }
 
                 // Check for O-GlcNAc
-                if (feature_type.to_lowercase().contains("glyc") || feature_type == "modified residue") &&
-                   (desc_lower.contains("o-glcnac") || 
-                    desc_lower.contains("n-acetylglucosamine") ||
-                    desc_lower.contains("glcnac")) {
-                    oglcnac_sites.insert(position, SiteInfo {
+                if (feature_type.to_lowercase().contains("glyc")
+                    || feature_type == "modified residue")
+                    && (desc_lower.contains("o-glcnac")
+                        || desc_lower.contains("n-acetylglucosamine")
+                        || desc_lower.contains("glcnac"))
+                {
+                    oglcnac_sites.insert(
                         position,
-                        amino_acid: extract_amino_acid(&desc_lower),
-                        ptm_type: "O-GlcNAc".to_string(),
-                        evidence: evidence.clone(),
-                    });
+                        SiteInfo {
+                            amino_acid: extract_amino_acid(&desc_lower),
+                            evidence: evidence.clone(),
+                        },
+                    );
                 }
             }
 
@@ -213,25 +215,34 @@ fn main() -> Result<()> {
 
     println!("📊 Protein Distribution:");
     println!("─────────────────────────────────────────────────────────");
-    let total_proteins = proteins_with_both + proteins_with_phospho_only + proteins_with_oglcnac_only;
-    println!("  Both ⚡ & 🍬:           {:6} ({:5.2}%)", 
+    let total_proteins =
+        proteins_with_both + proteins_with_phospho_only + proteins_with_oglcnac_only;
+    println!(
+        "  Both ⚡ & 🍬:           {:6} ({:5.2}%)",
         proteins_with_both,
-        (proteins_with_both as f64 / total_proteins as f64) * 100.0);
-    println!("  Phospho only ⚡:        {:6} ({:5.2}%)", 
+        (proteins_with_both as f64 / total_proteins as f64) * 100.0
+    );
+    println!(
+        "  Phospho only ⚡:        {:6} ({:5.2}%)",
         proteins_with_phospho_only,
-        (proteins_with_phospho_only as f64 / total_proteins as f64) * 100.0);
-    println!("  O-GlcNAc only 🍬:       {:6} ({:5.2}%)", 
+        (proteins_with_phospho_only as f64 / total_proteins as f64) * 100.0
+    );
+    println!(
+        "  O-GlcNAc only 🍬:       {:6} ({:5.2}%)",
         proteins_with_oglcnac_only,
-        (proteins_with_oglcnac_only as f64 / total_proteins as f64) * 100.0);
+        (proteins_with_oglcnac_only as f64 / total_proteins as f64) * 100.0
+    );
     println!("  TOTAL:                 {:6}\n", total_proteins);
 
     println!("🎯 Site-Level Analysis:");
     println!("─────────────────────────────────────────────────────────");
     println!("  Total phospho sites ⚡:        {:8}", total_phospho_sites);
     println!("  Total O-GlcNAc sites 🍬:       {:8}", total_oglcnac_sites);
-    println!("  Exact overlaps (same pos):     {:8} ({:5.2}%)", 
+    println!(
+        "  Exact overlaps (same pos):     {:8} ({:5.2}%)",
         overlapping_sites,
-        (overlapping_sites as f64 / total_phospho_sites.min(total_oglcnac_sites) as f64) * 100.0);
+        (overlapping_sites as f64 / total_phospho_sites.min(total_oglcnac_sites) as f64) * 100.0
+    );
     println!("  Proximal (±5 residues):        {:8}\n", proximal_sites);
 
     if !overlap_examples.is_empty() {
@@ -246,28 +257,39 @@ fn main() -> Result<()> {
     // Evidence comparison
     println!("⚖️  Evidence Level Comparison:");
     println!("─────────────────────────────────────────────────────────");
-    
+
     let phospho_experimental = count_experimental(&phospho_evidence);
     let oglcnac_experimental = count_experimental(&oglcnac_evidence);
-    
+
     println!("\n  Phosphorylation ⚡:");
-    println!("    Experimental:       {:8} ({:5.2}%)", 
+    println!(
+        "    Experimental:       {:8} ({:5.2}%)",
         phospho_experimental,
-        (phospho_experimental as f64 / total_phospho_sites as f64) * 100.0);
-    println!("    Non-Experimental:   {:8} ({:5.2}%)", 
+        (phospho_experimental as f64 / total_phospho_sites as f64) * 100.0
+    );
+    println!(
+        "    Non-Experimental:   {:8} ({:5.2}%)",
         total_phospho_sites - phospho_experimental,
-        ((total_phospho_sites - phospho_experimental) as f64 / total_phospho_sites as f64) * 100.0);
+        ((total_phospho_sites - phospho_experimental) as f64 / total_phospho_sites as f64) * 100.0
+    );
 
     println!("\n  O-GlcNAc 🍬:");
-    println!("    Experimental:       {:8} ({:5.2}%)", 
+    println!(
+        "    Experimental:       {:8} ({:5.2}%)",
         oglcnac_experimental,
-        (oglcnac_experimental as f64 / total_oglcnac_sites as f64) * 100.0);
-    println!("    Non-Experimental:   {:8} ({:5.2}%)", 
+        (oglcnac_experimental as f64 / total_oglcnac_sites as f64) * 100.0
+    );
+    println!(
+        "    Non-Experimental:   {:8} ({:5.2}%)",
         total_oglcnac_sites - oglcnac_experimental,
-        ((total_oglcnac_sites - oglcnac_experimental) as f64 / total_oglcnac_sites as f64) * 100.0);
+        ((total_oglcnac_sites - oglcnac_experimental) as f64 / total_oglcnac_sites as f64) * 100.0
+    );
 
     println!("\n═══════════════════════════════════════════════════════════");
-    println!("🧘 Yin-Yang Balance: {} proteins show co-occurrence", proteins_with_both);
+    println!(
+        "🧘 Yin-Yang Balance: {} proteins show co-occurrence",
+        proteins_with_both
+    );
     println!("═══════════════════════════════════════════════════════════");
 
     Ok(())

@@ -49,10 +49,9 @@ impl<M: MetricsCollector> EntryTransformer<M> {
             return Ok(vec![row]);
         }
 
-        let sidecar = self
-            .sidecar_fasta
-            .clone()
-            .ok_or_else(|| EtlError::MissingField("fasta_sidecar_path is required when isoforms exist".to_string()))?;
+        let sidecar = self.sidecar_fasta.clone().ok_or_else(|| {
+            EtlError::MissingField("fasta_sidecar_path is required when isoforms exist".to_string())
+        })?;
 
         let mut rows = Vec::with_capacity(shared_entry.isoforms.len());
         for iso in &shared_entry.isoforms {

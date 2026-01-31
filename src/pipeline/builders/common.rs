@@ -1,11 +1,12 @@
 use arrow::array::{
-    ArrayBuilder, Float32Builder, Int32Builder, ListArray, ListBuilder, StringBuilder, StructBuilder,
+    ArrayBuilder, Float32Builder, Int32Builder, ListArray, ListBuilder, StringBuilder,
+    StructBuilder,
 };
 
 use crate::pipeline::mapper::CoordinateMapper;
 use crate::pipeline::scratch::{
-    ActiveSiteScratch, BindingSiteScratch, DomainScratch, MetalCoordinationScratch, MutagenesisSiteScratch,
-    NaturalVariantScratch, ParsedEntry,
+    ActiveSiteScratch, BindingSiteScratch, DomainScratch, MetalCoordinationScratch,
+    MutagenesisSiteScratch, NaturalVariantScratch, ParsedEntry,
 };
 
 pub trait MappableFeature {
@@ -130,14 +131,17 @@ impl FeatureListBuilder {
         self.inner.finish()
     }
 
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
 
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
 
+    #[allow(dead_code)]
     pub fn values(&mut self) -> &mut ListBuilder<StructBuilder> {
         &mut self.inner
     }

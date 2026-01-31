@@ -1,0 +1,32 @@
+Benchmark Summary: Full Swiss-Prot Run (2026-01-31)
+
+Run ID: run_20260131_000831
+Timestamp: 2026-01-31T00:08:31.055919Z
+Status: Success
+
+Paths:
+Input: /Volumes/NVMe 2TB/UniProtKB_TaxDiv/swissprot
+Output: /Volumes/NVMe 2TB/ETL_TEST
+FASTA sidecar: /Volumes/NVMe 2TB/UniProtKB_TaxDiv/swissprot/fasta/uniprot_sprot_varsplic.fasta
+
+Performance:
+Entries parsed: 589191
+Entries/sec: 24787.67407347698
+Batches written: 64
+Features extracted: 5612961
+Isoforms extracted: 69952
+PTMs attempted: 539915
+PTMs mapped: 452744
+PTMs failed: 87171
+Bytes read: 8816898878
+Bytes written: 140090013
+
+Resources:
+Duration (s): 23.769515375
+Peak RSS (MB): 729.109375
+Peak CPU (%): 5704.5493
+
+Environment:
+OS: Darwin 26.2
+CPU: Apple M4 (10 cores)
+Memory (GB): 16.0

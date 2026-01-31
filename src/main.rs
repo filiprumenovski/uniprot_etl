@@ -11,6 +11,13 @@ mod sampler;
 mod schema;
 mod writer;
 
+#[cfg(not(target_os = "windows"))]
+use tikv_jemallocator::Jemalloc;
+
+#[cfg(not(target_os = "windows"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
 use anyhow::Result;
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -73,7 +80,10 @@ fn main() -> Result<()> {
     settings.resolve_paths(&root)?;
 
     // Create run context (timestamped directory, optionally overridden)
-    let run_context = RunContext::new_with_run_id(&settings.runs.runs_dir, args.run_id)?;
+    let run_context = match args.run_id {
+        Some(run_id) => RunContext::new_with_run_id(&settings.runs.runs_dir, Some(run_id))?,
+        None => RunContext::new(&settings.runs.runs_dir)?,
+    };
 
     // Set up tee logging to both file and stderr
     let log_file = OpenOptions::new()
@@ -175,6 +185,7 @@ fn main() -> Result<()> {
             metrics.clone(),
             Arc::clone(&channel_stats),
             settings.observability.metrics_bind_address.clone(),
+            Some(run_context.run_id.clone()),
         ) {
             Ok(handle) => {
                 log!(
@@ -204,6 +215,7 @@ fn main() -> Result<()> {
         settings: settings.clone(),
         metrics: metrics.clone(),
         channel_stats: Some(Arc::clone(&channel_stats)),
+        cancel_flag: None,
     };
 
     let etl_result = run_pipeline(&pipeline_args);
@@ -254,7 +266,6 @@ fn main() -> Result<()> {
     // Return the ETL result
     etl_result
 }
-
 
 fn print_summary_to_tee(metrics: &Metrics, logger: &mut TeeWriter) {
     let elapsed = metrics.elapsed_secs();

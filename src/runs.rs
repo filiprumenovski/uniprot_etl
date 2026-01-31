@@ -120,12 +120,9 @@ fn is_reusable_precreated_run_dir(run_dir: &Path) -> Result<bool> {
     let entries = fs::read_dir(run_dir)
         .with_context(|| format!("Failed to read run directory: {}", run_dir.display()))?;
 
-    let mut saw_entries = false;
     for entry in entries {
-        let entry = entry.with_context(|| {
-            format!("Failed to read directory entry in {}", run_dir.display())
-        })?;
-        saw_entries = true;
+        let entry = entry
+            .with_context(|| format!("Failed to read directory entry in {}", run_dir.display()))?;
 
         let Some(name) = entry.file_name().to_str().map(|s| s.to_string()) else {
             return Ok(false);

@@ -117,7 +117,7 @@ fn default_channel_capacity() -> usize {
 }
 
 fn default_zstd_level() -> u32 {
-    3
+    1
 }
 
 fn default_max_row_group_size() -> usize {

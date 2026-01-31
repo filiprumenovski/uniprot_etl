@@ -1,0 +1,22 @@
+version: '1.0'
+storage:
+  input_path: /Volumes/NVMe 2TB/UniProtKB_TaxDiv/swissprot/uniprot_sprot_bacteria.xml.gz
+  fasta_sidecar_path: /Volumes/NVMe 2TB/UniProtKB_TaxDiv/swissprot/fasta/uniprot_sprot_varsplic.fasta
+  output_path: /Volumes/NVMe 2TB/ETL_TEST
+  temp_dir: /Users/filiprumenovski/Code/UniProt_ETL/gui/src-tauri/data/tmp
+performance:
+  batch_size: 10000
+  thread_count: 1
+  channel_capacity: 8
+  zstd_level: 3
+  max_row_group_size: 100000
+  buffer_size: 262144
+logging:
+  log_level: info
+  metrics_interval_secs: 5
+runs:
+  runs_dir: /Users/filiprumenovski/Code/UniProt_ETL/gui/src-tauri/runs
+  keep_runs: 10
+observability:
+  enable_metrics_server: true
+  metrics_bind_address: 0.0.0.0:9090

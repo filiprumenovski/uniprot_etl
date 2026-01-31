@@ -59,13 +59,6 @@ data-clean-dry:
 data-fetch url out_file="" flags="":
     UNIPROT_URL={{url}} OUT_FILE={{out_file}} bash scripts/fetch_uniprot.sh {{flags}}
 
-# === Profiling ===
-profile-flamegraph bench="flamegraph_benchmark" run_id="" runs_dir=runs_dir flags="":
-    BENCH_TARGET={{bench}} bash scripts/profile_flamegraph.sh --runs-dir {{runs_dir}} {{if run_id != "" { "--run-id " + run_id } else { "" }}} {{flags}}
-
-profile-pipeline run_id="" runs_dir=runs_dir flags="":
-    bash scripts/profile_pipeline_flamegraph.sh --runs-dir {{runs_dir}} {{if run_id != "" { "--run-id " + run_id } else { "" }}} {{flags}}
-
 # === GUI ===
 gui-check:
     @command -v node >/dev/null || (echo "Node.js missing. Install: brew install node"; exit 1)

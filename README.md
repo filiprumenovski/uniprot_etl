@@ -49,15 +49,22 @@ root
 └── [Enriched Columns: domains, binding_sites, natural_variants, etc.]
 ```
 
+> [!TIP]
+> **Community Feedback**: We are actively seeking input from the scientific community to refine this schema. If you have suggestions for improving the data model to better serve your research needs, please open an issue or discussion!
+
 ## Key Features
 
 - **🚀 Streaming Architecture**: Uses an event-driven XML parser (`quick-xml`) to process gigabytes of data with constant, low memory usage (<1GB RAM).
 - **⚡ Parallel Processing**: "Swarm Mode" utilizes all available CPU cores (`rayon`) for parsing and transformation.
+    - *Tip: For best results, download the **Taxonomic Division** files (e.g., `vertebrates`, `plants`) and run in directory mode. This allows the swarm to process multiple files simultaneously.*
 - **🛡️ Zero-Copy Design**: Minimizes memory allocations for maximum throughput.
 - **🧬 Biological Fidelity**: Preserves all feature evidence, isoform sequences, and subcellular locations.
 - **📊 Observability**: Built-in Prometheus metrics server for real-time performance monitoring.
 
 ## Isoform Resolution Algorithm
+
+> [!NOTE]
+> **Requirement**: Populating isoform sequences requires the **`varsplic.fasta`** sidecar file. The main XML dump contains only the canonical sequence; the FASTA file is essential for resolving and validating splice variant sequences during the ETL process.
 
 A rigorous coordinate mapping system ensures that features (e.g., Active Sites, PTMs) defined on the canonical sequence are correctly projected onto alternative isoforms.
 
@@ -106,6 +113,27 @@ just gui-build  # Build Tauri app
 ```
 
 ## Usage
+
+### Downloading Data
+
+We provide a CLI to easily download UniProt datasets (Swiss-Prot, TrEMBL, and FASTA sidecars) directly from the FTP server:
+
+```bash
+# Download Swiss-Prot XML files (Taxonomic Divisions)
+just download-sprot data/xml/sprot
+
+# Download TrEMBL XML files (Taxonomic Divisions)
+just download-trembl data/xml/trembl
+
+# Download TrEMBL FASTA
+just download-trembl-fasta data/fasta
+
+# Download Swiss-Prot Varsplic FASTA (required for isoform resolution)
+just download-sprot-varsplic data/fasta
+```
+
+> [!IMPORTANT]
+> **Unzip FASTA Files**: The FASTA files are downloaded as `.gz` archives. You **must unzip them** before passing them to the `--fasta-sidecar` argument (e.g., `gunzip data/fasta/uniprot_sprot_varsplic.fasta.gz`). The XML parser, however, **natively supports** `.xml.gz` files, so you do *not* need to unzip the XML dumps.
 
 ### Basic Conversion
 Convert a gzipped UniProt XML dump to Parquet:

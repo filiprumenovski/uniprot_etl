@@ -38,6 +38,18 @@ run-swarm input_dir output_dir=default_output:
     cargo run --release --bin {{bin}} -- --config {{config}} --input "{{input_dir}}" --output "{{output_dir}}"
 
 # === Data ===
+download-sprot output_dir:
+    python3 scripts/download_uniprot.py sprot --output-dir "{{output_dir}}"
+
+download-trembl output_dir:
+    python3 scripts/download_uniprot.py trembl --output-dir "{{output_dir}}"
+
+download-trembl-fasta output_dir:
+    python3 scripts/download_uniprot.py trembl-fasta --output-dir "{{output_dir}}"
+
+download-sprot-varsplic output_dir:
+    python3 scripts/download_uniprot.py sprot-varsplic --output-dir "{{output_dir}}"
+
 data-clean flags="--force":
     bash scripts/clean_data.sh {{flags}}
 
@@ -88,5 +100,6 @@ gui-full: gui-check gui-setup gui-dev
 dev-check: check
 clean-data: data-clean
 clean-data-dry: data-clean-dry
-fetch-data: data-fetch
+fetch-data url out_file="" flags="":
+    @just data-fetch {{url}} {{out_file}} {{flags}}
 gui-install: gui-setup

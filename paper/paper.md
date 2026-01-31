@@ -22,7 +22,7 @@ bibliography: paper.bib
 
 # Summary
 
-UniProt ETL is a high-throughput, streaming engine written in Rust that converts UniProtKB XML data dumps into Apache Parquet format. Designed to handle the full scale of UniProtKB—including TrEMBL's 250+ million sequences—the software combines event-driven XML parsing with columnar storage to achieve constant memory usage regardless of input size. On commodity hardware, UniProt ETL processes data at ~24,800 entries/second with ~60× compression while preserving the full biological hierarchy of protein annotations, isoform sequences, and post-translational modification sites.
+UniProt ETL is a high-throughput, streaming engine written in Rust that converts UniProtKB XML data dumps into Apache Parquet format. Designed to handle the full scale of UniProtKB—including both the ~570,000 manually curated Swiss-Prot entries and TrEMBL's 250+ million automated sequences—the software combines event-driven XML parsing with columnar storage to achieve constant memory usage regardless of input size. On commodity hardware, UniProt ETL processes data at ~24,800 entries/second with ~60× compression while preserving the full biological hierarchy of protein annotations, isoform sequences, and post-translational modification sites.
 
 # Statement of Need
 

@@ -7,6 +7,10 @@
 
 Built with Rust, it enables **commodity hardware** (e.g., a standard laptop) to parse, process, and analyze the entire UniProt database in minutes—tasks that previously required high-memory workstations or clusters.
 
+## Statement of Need
+
+Modern biological research increasingly relies on high-throughput proteomics, where UniProt serves as the central hub for protein sequence and functional information. However, the sheer size of UniProtKB data dumps (exceeding 100GB uncompressed XML) poses a significant computational bottleneck for bioinformaticians and proteomic researchers. Existing tools often require high-memory infrastructure or lack the ability to preserve hierarchically structured data like isoforms and feature annotations. **UniProt ETL** addresses this gap by providing a resource-efficient, streaming solution that converts these massive datasets into Apache Parquet. This enables researchers to perform performant, SQL-like analytics on commodity hardware, significantly accelerating the transition from raw data dumps to actionable biological insights.
+
 ## Why Parquet?
 
 The traditional UniProt XML dumps are massive (>100GB uncompressed), difficult to query, and require expensive DOM parsing. 
@@ -112,9 +116,18 @@ just gui-setup  # Install npm dependencies
 just gui-build  # Build Tauri app
 ```
 
+### Running Tests
+To run the full test suite, execute:
+```bash
+cargo test
+```
+
 ## Usage
 
 ### Downloading Data
+
+> [!NOTE]
+> UniProt ETL is designed primarily as a Command Line Interface (CLI) tool. While it is structured as a crate, the library API is internal and not currently documented for external consumption.
 
 We provide a CLI to easily download UniProt datasets (Swiss-Prot, TrEMBL, and FASTA sidecars) directly from the FTP server:
 

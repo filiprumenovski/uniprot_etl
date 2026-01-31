@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Rumenovski"
+    given-names: "Filip"
+title: "UniProt ETL"
+version: 0.1.0
+date-released: 2026-01-30
+url: "https://github.com/filiprumenovski/uniprot_etl"
+license: MIT
+keywords:
+  - bioinformatics
+  - proteomics
+  - xml
+  - parquet
+  - rust
+  - etl

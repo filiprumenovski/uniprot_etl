@@ -16,3 +16,4 @@
 # Per-run artifacts (logs, snapshots, reports, profiles)
 /runs/
 gui/frontend/node_modules/
+.DS_Store

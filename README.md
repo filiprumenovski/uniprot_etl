@@ -112,15 +112,6 @@ Located in [scripts/](scripts/):
 - `profile_flamegraph.sh`: Build and profile benchmarks with cargo-flamegraph.
   
   
-### UI
-
-During pipeline runs, a lightweight terminal progress bar shows:
-- entries parsed, entries/sec
-- batches, features, isoforms
-- bytes read/written
-
-This uses `indicatif` and cleans up automatically at the end of the run.
-
 ### Testing
 
 ```bash
@@ -140,43 +131,6 @@ just profile-flamegraph bench="flamegraph_benchmark" run_id="run_20251218_120000
 just profile-pipeline flags='--release --args "--input data/raw/uniprot_sprot.xml.gz"'
 ```
 
-### Code Organization
-
-```
-src/
-├── main.rs              # CLI orchestration
-├── cli.rs               # Clap argument parsing
-├── config.rs            # YAML config + Settings
-├── schema.rs            # Arrow schema definition
-├── metrics.rs           # Performance counters
-├── error.rs             # Error types
-├── lib.rs               # Public module exports
-├── pipeline/
-│   ├── parser.rs        # Event-driven XML loop
-│   ├── state.rs         # Entry state machine
-│   ├── reader.rs        # File I/O + gzip
-│   ├── builders.rs      # Arrow array builders
-│   ├── batcher.rs       # Batch grouping
-│   └── mod.rs           # Submodule exports
-├── writer/
-│   ├── parquet.rs       # Parquet serialization
-│   └── mod.rs           # Submodule exports
-└── bin/
-    └── filter_taxa.rs   # Utility: split by organism_id
-```
-
-## Contributing
-
-### Adding New Decisions
-
-Copy [docs/adr/template.md](docs/adr/template.md) and increment the ADR number:
-
-```bash
-cp docs/adr/template.md docs/adr/000X-my-decision.md
-```
-
-Fill in Title, Status, Context, Decision, Consequences sections. Ensure Context links technical choices to biological requirements (e.g., evidence fidelity).
-
 ### Code Style
 
 - **Formatting:** `just fmt`
@@ -185,12 +139,6 @@ Fill in Title, Status, Context, Decision, Consequences sections. Ensure Context 
 
 Run `just dev-check` to execute all three.
 
-## Performance
-
-Target metrics (validated in CI):
-- **Memory:** <500MB for Swiss-Prot (~550k entries).
-- **Speed:** <10 minutes on commodity hardware (4-core, 8GB RAM, SSD).
-- **Throughput:** ~1M entries/min after warm-up.
 
 See [benches/](benches/) for profiling scripts and [docs/flamegraph.md](docs/flamegraph.md) for detailed profiling guidance.
 

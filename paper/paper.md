@@ -104,6 +104,6 @@ UniProt ETL is available under the MIT license at [https://github.com/filiprumen
 
 # Acknowledgements
 
-The author thanks the UniProt Consortium for maintaining the foundational protein knowledge base that makes this work possible, and the Rust community for the `quick-xml`, `arrow`, and `parquet` crates that underpin the implementation. The author also acknowledges the use of AI tools (Google Gemini) for code generation, documentation drafting, and refactoring assistance during the development of this project.
+The author thanks the UniProt Consortium for maintaining the foundational protein knowledge base that makes this work possible, and the Rust community for the `quick-xml`, `arrow`, and `parquet` crates that underpin the implementation. The author also acknowledges the use of AI tools for code generation, documentation drafting, and refactoring assistance during the development of this project.
 
 # References
